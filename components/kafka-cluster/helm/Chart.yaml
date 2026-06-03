@@ -1,0 +1,19 @@
+apiVersion: v2
+name: hamq-kafka-cluster
+description: HA Kafka cluster via Strimzi for HAMq
+type: application
+version: 1.0.0
+appVersion: "3.8.0"
+keywords:
+  - kafka
+  - strimzi
+  - message-broker
+  - ha
+home: https://github.com/lambdawp-567/hamq
+maintainers:
+  - name: HAMq Team
+dependencies:
+  - name: strimzi-kafka-operator
+    version: "0.43.0"
+    repository: https://strimzi.io/charts/
+    condition: strimzi.install
