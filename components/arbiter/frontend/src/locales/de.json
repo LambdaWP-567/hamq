@@ -1,0 +1,94 @@
+{
+  "nav": {
+    "title": "HAMq Schiedsrichter",
+    "dashboard": "Dashboard",
+    "audits": "Prüfprotokoll",
+    "stats": "Statistiken"
+  },
+  "status": {
+    "running": "Aktiv",
+    "stopped": "Gestoppt",
+    "last_reconcile": "Letzte Prüfung",
+    "loss_rate": "Verlustrate",
+    "total_audits": "Gesamtprüfungen",
+    "producers_monitored": "Überwachte Produzenten",
+    "never": "Noch nie",
+    "ok": "OK",
+    "warning": "Warnung",
+    "critical": "Kritisch",
+    "unknown": "Unbekannt"
+  },
+  "controls": {
+    "reconcile_now": "Jetzt prüfen",
+    "reconciling": "Prüfe...",
+    "start": "Automatisch starten",
+    "stop": "Stoppen",
+    "starting": "Starte...",
+    "stopping": "Stoppe..."
+  },
+  "audit": {
+    "title": "Prüfprotokoll",
+    "producer": "Produzent",
+    "sent": "Gesendet",
+    "received": "Empfangen",
+    "missing": "Fehlend",
+    "loss_rate": "Verlustrate",
+    "timestamp": "Zeitstempel",
+    "details": "Details",
+    "no_audits": "Keine Prüfungen vorhanden",
+    "loading": "Lade Prüfungen...",
+    "expand": "Erweitern",
+    "collapse": "Einklappen",
+    "missing_sequences": "Fehlende Sequenznummern",
+    "no_missing": "Keine fehlenden Sequenzen"
+  },
+  "chart": {
+    "loss_rate_title": "Verlustrate über Zeit",
+    "no_data": "Keine Daten vorhanden",
+    "loss_rate_label": "Verlustrate (%)"
+  },
+  "report": {
+    "title": "Aktueller Bericht",
+    "no_report": "Noch kein Bericht erstellt",
+    "no_loss": "Kein Nachrichtenverlust",
+    "missing_sequences": "Fehlende Sequenznummern",
+    "total_sent": "Gesamt gesendet",
+    "total_received": "Gesamt empfangen",
+    "total_missing": "Gesamt fehlend",
+    "duration": "Dauer",
+    "producers": "Produzenten",
+    "ms": "ms"
+  },
+  "stats": {
+    "title": "Statistiken",
+    "total_audits": "Gesamtprüfungen",
+    "avg_loss_rate": "Durchschn. Verlustrate",
+    "worst_producer": "Schlechtester Produzent",
+    "worst_loss_rate": "Höchste Verlustrate",
+    "producers_tracked": "Verfolgte Produzenten",
+    "no_data": "Keine Statistiken verfügbar"
+  },
+  "login": {
+    "title": "Anmelden",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "submitting": "Anmelden...",
+    "error": "Ungültige Anmeldedaten",
+    "welcome": "Willkommen beim HAMq Schiedsrichter"
+  },
+  "errors": {
+    "fetch_failed": "Daten konnten nicht geladen werden",
+    "reconcile_failed": "Prüfung fehlgeschlagen",
+    "start_failed": "Start fehlgeschlagen",
+    "stop_failed": "Stopp fehlgeschlagen",
+    "connection_lost": "Verbindung unterbrochen",
+    "reconnecting": "Verbindung wird wiederhergestellt..."
+  },
+  "common": {
+    "loading": "Laden...",
+    "retry": "Erneut versuchen",
+    "close": "Schließen",
+    "unknown": "Unbekannt"
+  }
+}

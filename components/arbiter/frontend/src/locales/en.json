@@ -1,0 +1,94 @@
+{
+  "nav": {
+    "title": "HAMq Arbiter",
+    "dashboard": "Dashboard",
+    "audits": "Audit Log",
+    "stats": "Statistics"
+  },
+  "status": {
+    "running": "Running",
+    "stopped": "Stopped",
+    "last_reconcile": "Last Reconcile",
+    "loss_rate": "Loss Rate",
+    "total_audits": "Total Audits",
+    "producers_monitored": "Producers Monitored",
+    "never": "Never",
+    "ok": "OK",
+    "warning": "Warning",
+    "critical": "Critical",
+    "unknown": "Unknown"
+  },
+  "controls": {
+    "reconcile_now": "Reconcile Now",
+    "reconciling": "Reconciling...",
+    "start": "Start Auto-Reconcile",
+    "stop": "Stop",
+    "starting": "Starting...",
+    "stopping": "Stopping..."
+  },
+  "audit": {
+    "title": "Audit Log",
+    "producer": "Producer",
+    "sent": "Sent",
+    "received": "Received",
+    "missing": "Missing",
+    "loss_rate": "Loss Rate",
+    "timestamp": "Timestamp",
+    "details": "Details",
+    "no_audits": "No audits available",
+    "loading": "Loading audits...",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "missing_sequences": "Missing Sequence Numbers",
+    "no_missing": "No missing sequences"
+  },
+  "chart": {
+    "loss_rate_title": "Loss Rate Over Time",
+    "no_data": "No data available",
+    "loss_rate_label": "Loss Rate (%)"
+  },
+  "report": {
+    "title": "Current Report",
+    "no_report": "No report generated yet",
+    "no_loss": "No message loss detected",
+    "missing_sequences": "Missing Sequence Numbers",
+    "total_sent": "Total Sent",
+    "total_received": "Total Received",
+    "total_missing": "Total Missing",
+    "duration": "Duration",
+    "producers": "Producers",
+    "ms": "ms"
+  },
+  "stats": {
+    "title": "Statistics",
+    "total_audits": "Total Audits",
+    "avg_loss_rate": "Avg Loss Rate",
+    "worst_producer": "Worst Producer",
+    "worst_loss_rate": "Highest Loss Rate",
+    "producers_tracked": "Producers Tracked",
+    "no_data": "No statistics available"
+  },
+  "login": {
+    "title": "Sign In",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign In",
+    "submitting": "Signing in...",
+    "error": "Invalid credentials",
+    "welcome": "Welcome to HAMq Arbiter"
+  },
+  "errors": {
+    "fetch_failed": "Failed to load data",
+    "reconcile_failed": "Reconcile failed",
+    "start_failed": "Failed to start",
+    "stop_failed": "Failed to stop",
+    "connection_lost": "Connection lost",
+    "reconnecting": "Reconnecting..."
+  },
+  "common": {
+    "loading": "Loading...",
+    "retry": "Retry",
+    "close": "Close",
+    "unknown": "Unknown"
+  }
+}

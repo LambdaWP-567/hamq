@@ -1,0 +1,92 @@
+{{/*
+users.yaml — KafkaUser custom resources
+
+Creates the following users via the Strimzi User Operator:
+  - {{ .Values.users.producer.name }}  (producer client — write access)
+  - {{ .Values.users.consumer.name }}  (consumer client — read access)
+
+For each KafkaUser with authentication.type: tls, the User Operator:
+  1. Generates a TLS client certificate signed by the Kafka clients CA.
+  2. Stores the certificate and private key in a Kubernetes Secret
+     named after the KafkaUser (e.g. Secret/hamq-producer).
+  3. Enforces the declared ACL rules in Kafka's AclAuthorizer.
+
+Application pods mount these Secrets to obtain ca.crt, user.crt, user.key.
+
+The User Operator must be enabled (kafka.entityOperator.userOperator.enabled: true).
+*/}}
+
+# =============================================================================
+# Producer user
+# Permissions: Write, Create, Describe on the messages topic
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: {{ .Values.users.producer.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    # Links this user to the correct Kafka cluster
+    strimzi.io/cluster: {{ .Values.kafka.name }}
+    app.kubernetes.io/name: {{ .Values.users.producer.name }}
+    app.kubernetes.io/component: kafka-user
+    app.kubernetes.io/managed-by: Helm
+spec:
+  authentication:
+    # "tls" — User Operator issues a TLS client certificate.
+    # The certificate CN will equal the KafkaUser name ({{ .Values.users.producer.name }}).
+    type: {{ .Values.users.producer.authentication.type }}
+
+  authorization:
+    # "simple" — Kafka's built-in ACL authorization (AclAuthorizer / SimpleAclAuthorizer)
+    type: {{ .Values.users.producer.authorization.type }}
+    acls:
+      {{- range .Values.users.producer.authorization.acls }}
+      - resource:
+          # "topic" resource type — applies to the named topic
+          type: {{ .resource.type }}
+          name: {{ .resource.name }}
+          # "literal" = exact name match (not a prefix or wildcard)
+          patternType: literal
+        operations:
+          {{- range .operations }}
+          - {{ . }}
+          {{- end }}
+        # "Allow" is the only supported host in simple ACLs (deny by default for all others)
+        host: "*"
+      {{- end }}
+
+---
+# =============================================================================
+# Consumer user
+# Permissions: Read + Describe on the messages topic;
+#              Read on the consumer group
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaUser
+metadata:
+  name: {{ .Values.users.consumer.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    strimzi.io/cluster: {{ .Values.kafka.name }}
+    app.kubernetes.io/name: {{ .Values.users.consumer.name }}
+    app.kubernetes.io/component: kafka-user
+    app.kubernetes.io/managed-by: Helm
+spec:
+  authentication:
+    type: {{ .Values.users.consumer.authentication.type }}
+
+  authorization:
+    type: {{ .Values.users.consumer.authorization.type }}
+    acls:
+      {{- range .Values.users.consumer.authorization.acls }}
+      - resource:
+          type: {{ .resource.type }}
+          name: {{ .resource.name }}
+          patternType: literal
+        operations:
+          {{- range .operations }}
+          - {{ . }}
+          {{- end }}
+        host: "*"
+      {{- end }}
