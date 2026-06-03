@@ -1,0 +1,255 @@
+# =============================================================================
+# HAMq Kafka Cluster Helm Chart — values.yaml
+# All settings are exposed as Helm values; no hardcoded values in templates.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Global settings
+# -----------------------------------------------------------------------------
+global:
+  # Kubernetes namespace for all Kafka resources
+  namespace: kafka
+  # Override the container image registry globally (leave empty to use default)
+  imageRegistry: ""
+
+# -----------------------------------------------------------------------------
+# Strimzi operator installation
+# Set strimzi.install: false if you have already installed Strimzi separately.
+# -----------------------------------------------------------------------------
+strimzi:
+  install: true
+
+# -----------------------------------------------------------------------------
+# Kafka cluster configuration
+# -----------------------------------------------------------------------------
+kafka:
+  # Strimzi cluster name — used as prefix for all generated resource names
+  # e.g. <name>-kafka-bootstrap, <name>-kafka-brokers, etc.
+  name: hamq-kafka
+
+  # Kafka version to deploy. Must be supported by the Strimzi version in Chart.yaml.
+  version: "3.8.0"
+
+  # Number of broker+controller nodes (KRaft dual-role pool).
+  # Minimum 3 for production HA (quorum requires majority: ceil((n+1)/2)).
+  replicas: 3
+
+  # ---------------------------------------------------------------------------
+  # Storage — PersistentVolumeClaim per broker node
+  # ---------------------------------------------------------------------------
+  storage:
+    # "persistent-claim" for production; "ephemeral" for testing only
+    type: persistent-claim
+    # Size of the PVC provisioned for each broker node
+    size: 10Gi
+    # Kubernetes StorageClass to use for broker PVCs.
+    # Must exist in your cluster. Common values: standard, gp2, gp3, premium, etc.
+    storageClass: standard
+    # If true, Strimzi will delete the PVCs when the Kafka resource is deleted.
+    # Keep false in production to prevent accidental data loss.
+    deleteClaim: false
+
+  # ---------------------------------------------------------------------------
+  # Resource requests and limits for broker pods
+  # ---------------------------------------------------------------------------
+  resources:
+    requests:
+      memory: 2Gi
+      cpu: 500m
+    limits:
+      memory: 4Gi
+      cpu: 2000m
+
+  # ---------------------------------------------------------------------------
+  # JVM options for broker processes
+  # Set xmx and xms to the same value to avoid heap resizing pauses.
+  # Rule of thumb: ~60-75% of the container memory limit.
+  # ---------------------------------------------------------------------------
+  jvmOptions:
+    xmx: 1536m
+    xms: 1536m
+
+  # ---------------------------------------------------------------------------
+  # Listeners
+  # ---------------------------------------------------------------------------
+  listeners:
+    # Plain (no TLS) listener — useful for in-cluster tooling and development.
+    # Disable in production by setting enabled: false.
+    plain:
+      port: 9092
+      enabled: true
+
+    # TLS listener with mTLS client authentication.
+    # Used by in-cluster consumers/producers.
+    tls:
+      port: 9093
+      enabled: true
+      authentication:
+        # "tls" = mutual TLS; clients must present a certificate signed by the clients CA
+        type: tls
+
+    # External LoadBalancer listener — for cross-cluster access.
+    # Exposes Kafka outside Cluster A via a cloud LoadBalancer Service.
+    external:
+      port: 9094
+      # Supported types: loadbalancer, nodeport, ingress, clusterip
+      type: loadbalancer
+      enabled: true
+      # Enforce TLS on the external listener
+      tls: true
+
+  # ---------------------------------------------------------------------------
+  # Kafka broker configuration properties
+  # These map directly to broker config keys in the Strimzi Kafka CR.
+  # ---------------------------------------------------------------------------
+  config:
+    # Default replication factor for topics that do not specify one explicitly.
+    # Must be <= kafka.replicas.
+    defaultReplicationFactor: 3
+
+    # Minimum number of in-sync replicas required for a produce request to succeed
+    # when acks=all. If ISR count drops below this, producers get NotEnoughReplicasException.
+    minInsyncReplicas: 2
+
+    # Replication factor for the internal __consumer_offsets topic.
+    offsetsTopicReplicationFactor: 3
+
+    # Replication factor for the internal transaction state log topic.
+    transactionStateLogReplicationFactor: 3
+
+    # Min ISR for the transaction state log topic.
+    transactionStateLogMinIsr: 2
+
+    # How long to retain log segments (in hours). Default: 7 days.
+    logRetentionHours: 168
+
+    # Maximum size of a single log segment file (in bytes). Default: 1 GiB.
+    logSegmentBytes: 1073741824
+
+    # Prevent automatic topic creation. All topics must be created via KafkaTopic resources.
+    # This prevents typos in topic names from silently creating unwanted topics.
+    autoCreateTopicsEnable: false
+
+  # ---------------------------------------------------------------------------
+  # Metrics — JMX Prometheus Exporter
+  # ---------------------------------------------------------------------------
+  metrics:
+    # Enable JMX Prometheus Exporter sidecar. Exposes metrics on port 9404.
+    enabled: true
+
+  # ---------------------------------------------------------------------------
+  # Entity Operator — manages KafkaTopic and KafkaUser resources
+  # ---------------------------------------------------------------------------
+  entityOperator:
+    topicOperator:
+      # Set to false if you manage topics outside of Strimzi (e.g., terraform)
+      enabled: true
+    userOperator:
+      # Set to false if you manage users outside of Strimzi
+      enabled: true
+
+# -----------------------------------------------------------------------------
+# Kafka topics — pre-created via KafkaTopic custom resources
+# These are created in the same namespace as the Kafka cluster.
+# -----------------------------------------------------------------------------
+topics:
+  messages:
+    # Name of the primary message topic
+    name: hamq-messages
+    # Number of partitions. Higher partitions = higher parallelism.
+    # 12 partitions supports up to 12 concurrent consumers.
+    partitions: 12
+    # Replication factor. Must be <= kafka.replicas.
+    replicas: 3
+    config:
+      # Retention time in milliseconds (7 days = 604800000 ms)
+      retentionMs: "604800000"
+      # Topic-level min.insync.replicas (overrides broker default for this topic)
+      minInsyncReplicas: "2"
+      # "delete": remove old segments by time/size; "compact": keep latest per key
+      cleanupPolicy: "delete"
+
+  dlq:
+    # Dead-letter queue for messages that could not be processed
+    name: hamq-dlq
+    partitions: 3
+    replicas: 3
+    # DLQ uses broker-default retention and cleanup policy
+
+# -----------------------------------------------------------------------------
+# Kafka users — created via KafkaUser custom resources
+# Strimzi's User Operator provisions TLS certificates and ACLs automatically.
+# -----------------------------------------------------------------------------
+users:
+  producer:
+    # Name of the KafkaUser resource (also the name of the generated Secret)
+    name: hamq-producer
+    authentication:
+      # TLS client certificate authentication
+      type: tls
+    authorization:
+      # "simple" = Kafka ACL-based authorization (AclAuthorizer)
+      type: simple
+      acls:
+        - resource:
+            type: topic
+            name: hamq-messages
+          # Producer needs Write to publish, Create for idempotent producer metadata,
+          # and Describe to fetch topic metadata.
+          operations: [Write, Create, Describe]
+
+  consumer:
+    name: hamq-consumer
+    authentication:
+      type: tls
+    authorization:
+      type: simple
+      acls:
+        - resource:
+            type: topic
+            name: hamq-messages
+          # Consumer needs Read to fetch messages, Describe for metadata.
+          operations: [Read, Describe]
+        - resource:
+            type: group
+            # Consumer group name — must match KAFKA_GROUP_ID in the consumer app
+            name: hamq-consumer-group
+          # Consumer needs Read permission on the group to commit/read offsets.
+          operations: [Read]
+
+# -----------------------------------------------------------------------------
+# cert-manager integration
+# cert-manager must be installed in the same cluster before deploying this chart.
+# -----------------------------------------------------------------------------
+certManager:
+  enabled: true
+  # Name of the cert-manager Issuer or ClusterIssuer to use for additional certs
+  issuerName: selfsigned-issuer
+  # Kind: "ClusterIssuer" (cluster-scoped) or "Issuer" (namespace-scoped)
+  issuerKind: ClusterIssuer
+
+# -----------------------------------------------------------------------------
+# Prometheus monitoring
+# Requires the Prometheus Operator (kube-prometheus-stack or standalone) to be
+# installed and watching the serviceMonitor.namespace.
+# -----------------------------------------------------------------------------
+monitoring:
+  # Master switch — disables all monitoring resources if false
+  enabled: true
+
+  serviceMonitor:
+    # Deploy a ServiceMonitor CR for Prometheus Operator
+    enabled: true
+    # Namespace where the ServiceMonitor should be created.
+    # Must match the Prometheus Operator's watchNamespaces setting.
+    namespace: monitoring
+    # How often Prometheus scrapes the Kafka JMX exporter endpoint
+    interval: 30s
+
+  grafana:
+    dashboards:
+      # Deploy pre-built Grafana dashboard ConfigMaps
+      enabled: true
+      # Namespace for the dashboard ConfigMaps.
+      # Grafana sidecar must watch this namespace for label grafana_dashboard="1".
+      namespace: monitoring

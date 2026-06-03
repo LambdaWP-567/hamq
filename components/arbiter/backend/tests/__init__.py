@@ -1,0 +1,1 @@
+# HAMq Arbiter tests package
