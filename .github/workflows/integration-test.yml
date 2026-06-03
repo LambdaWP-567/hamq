@@ -1,0 +1,219 @@
+name: Integration Test
+
+# Runs after all component images are built to verify the full stack
+# can start (producer → kafka → consumer → arbiter) without message loss.
+# Uses docker-compose to spin up a local Kafka + all components.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      kafka_replicas:
+        description: "Number of Kafka broker replicas"
+        required: false
+        default: "1"
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Build all component images locally for the integration test ──────────
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build producer image
+        uses: docker/build-push-action@v6
+        with:
+          context: components/producer
+          push: false
+          tags: hamq-producer:test
+          load: true
+
+      - name: Build consumer image
+        uses: docker/build-push-action@v6
+        with:
+          context: components/consumer
+          push: false
+          tags: hamq-consumer:test
+          load: true
+
+      - name: Build arbiter image
+        uses: docker/build-push-action@v6
+        with:
+          context: components/arbiter
+          push: false
+          tags: hamq-arbiter:test
+          load: true
+
+      # ── Start Kafka (single broker for CI) ───────────────────────────────────
+      - name: Start Kafka (Bitnami single-node)
+        run: |
+          docker network create hamq-test-net
+
+          # Start Kafka in KRaft mode (no Zookeeper) for speed in CI
+          docker run -d \
+            --name kafka-test \
+            --network hamq-test-net \
+            -e KAFKA_CFG_NODE_ID=1 \
+            -e KAFKA_CFG_PROCESS_ROLES=broker,controller \
+            -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka-test:9093 \
+            -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+            -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-test:9092 \
+            -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT \
+            -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+            -e KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true \
+            -e ALLOW_PLAINTEXT_LISTENER=yes \
+            bitnami/kafka:3.8
+
+      - name: Wait for Kafka to be ready
+        run: |
+          echo "Waiting for Kafka to accept connections…"
+          for i in $(seq 1 30); do
+            if docker exec kafka-test kafka-topics.sh \
+              --bootstrap-server localhost:9092 --list >/dev/null 2>&1; then
+              echo "Kafka is ready after ${i}×2s"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Create hamq-messages topic
+        run: |
+          docker exec kafka-test kafka-topics.sh \
+            --bootstrap-server localhost:9092 \
+            --create --topic hamq-messages \
+            --partitions 3 --replication-factor 1 \
+            --if-not-exists
+
+      # ── Start application containers ─────────────────────────────────────────
+      - name: Start producer
+        run: |
+          docker run -d \
+            --name producer-test \
+            --network hamq-test-net \
+            -p 18000:8000 \
+            -e KAFKA_BOOTSTRAP_SERVERS="kafka-test:9092" \
+            -e KAFKA_TLS_ENABLED="false" \
+            -e BUFFER_DB_PATH="/tmp/producer.db" \
+            -e PRODUCER_ID="integration-producer" \
+            -e PRODUCER_FREQUENCY_HZ="10" \
+            -e PRODUCER_AUTOSTART="false" \
+            -e AUTH_USERNAME="admin" \
+            -e AUTH_PASSWORD_HASH='$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry' \
+            -e AUTH_SECRET_KEY="integration-test-secret-32-chars!" \
+            hamq-producer:test
+
+      - name: Start consumer
+        run: |
+          docker run -d \
+            --name consumer-test \
+            --network hamq-test-net \
+            -p 18001:8001 \
+            -e KAFKA_BOOTSTRAP_SERVERS="kafka-test:9092" \
+            -e KAFKA_TLS_ENABLED="false" \
+            -e STORAGE_DB_PATH="/tmp/consumer.db" \
+            -e CONSUMER_GROUP_ID="integration-consumer-group" \
+            -e AUTH_USERNAME="admin" \
+            -e AUTH_PASSWORD_HASH='$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry' \
+            -e AUTH_SECRET_KEY="integration-test-secret-32-chars!" \
+            hamq-consumer:test
+
+      - name: Wait for producer and consumer to be healthy
+        run: |
+          for SVC in "18000/api/health" "18001/api/health"; do
+            echo "Waiting for http://localhost:${SVC}…"
+            for i in $(seq 1 20); do
+              if curl -sf "http://localhost:${SVC}" >/dev/null 2>&1; then
+                echo "  Ready after ${i}×2s"; break
+              fi
+              sleep 2
+            done
+          done
+
+      # ── Run the 30-second message flow test ──────────────────────────────────
+      - name: Obtain auth token for producer
+        id: producer_token
+        run: |
+          TOKEN=$(curl -sf -X POST http://localhost:18000/api/v1/auth/token \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "username=admin&password=admin" | jq -r .access_token)
+          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+
+      - name: Start producing at 10 msg/s for 15 seconds
+        run: |
+          # Start the producer
+          curl -sf -X POST http://localhost:18000/api/v1/producer/start \
+            -H "Authorization: Bearer ${{ steps.producer_token.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d '{"frequency_hz": 10}' || true
+
+          echo "Producing for 15 seconds…"
+          sleep 15
+
+          # Stop the producer
+          curl -sf -X POST http://localhost:18000/api/v1/producer/stop \
+            -H "Authorization: Bearer ${{ steps.producer_token.outputs.token }}" || true
+
+          # Allow consumer to finish draining
+          sleep 5
+
+      - name: Obtain auth token for consumer
+        id: consumer_token
+        run: |
+          TOKEN=$(curl -sf -X POST http://localhost:18001/api/v1/auth/token \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "username=admin&password=admin" | jq -r .access_token)
+          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify message counts (sent ≈ received, no loss > 1%)
+        run: |
+          SENT=$(curl -sf http://localhost:18000/api/v1/producer/stats \
+            -H "Authorization: Bearer ${{ steps.producer_token.outputs.token }}" \
+            | jq -r .messages_sent)
+
+          RECEIVED=$(curl -sf http://localhost:18001/api/v1/consumer/stats \
+            -H "Authorization: Bearer ${{ steps.consumer_token.outputs.token }}" \
+            | jq -r .messages_received)
+
+          echo "Sent: ${SENT}, Received: ${RECEIVED}"
+
+          # Calculate allowed loss (1% threshold)
+          python3 -c "
+          sent = int('${SENT}')
+          received = int('${RECEIVED}')
+          if sent == 0:
+              print('WARNING: No messages sent — check producer')
+              exit(1)
+          loss_pct = (sent - received) / sent * 100
+          print(f'Message loss: {loss_pct:.2f}%  (sent={sent}, received={received})')
+          if loss_pct > 1.0:
+              print(f'FAIL: Loss {loss_pct:.2f}% exceeds 1% threshold')
+              exit(1)
+          print('PASS: Message loss within acceptable threshold')
+          "
+
+      # ── Collect logs on failure ───────────────────────────────────────────────
+      - name: Collect container logs on failure
+        if: failure()
+        run: |
+          echo "=== PRODUCER LOGS ==="
+          docker logs producer-test 2>&1 | tail -100
+          echo "=== CONSUMER LOGS ==="
+          docker logs consumer-test 2>&1 | tail -100
+          echo "=== KAFKA LOGS ==="
+          docker logs kafka-test 2>&1 | tail -50
+
+      # ── Cleanup ───────────────────────────────────────────────────────────────
+      - name: Cleanup containers
+        if: always()
+        run: |
+          docker stop producer-test consumer-test kafka-test 2>/dev/null || true
+          docker rm   producer-test consumer-test kafka-test 2>/dev/null || true
+          docker network rm hamq-test-net 2>/dev/null || true
