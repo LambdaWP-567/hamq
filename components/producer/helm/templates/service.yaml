@@ -1,0 +1,48 @@
+{{- /*
+  HAMq Producer Services
+  Backend service (port 8000) and Frontend service (port 3000).
+*/ -}}
+---
+# Backend service — exposes the FastAPI producer API
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-producer.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-producer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.service.backend.type }}
+  selector:
+    {{- include "hamq-producer.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.service.backend.port }}
+      targetPort: http-backend
+    {{- if .Values.monitoring.enabled }}
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: metrics
+    {{- end }}
+---
+# Frontend service — exposes the Nginx-served React SPA
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-producer.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-producer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.service.frontend.type }}
+  selector:
+    {{- include "hamq-producer.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.service.frontend.port }}
+      targetPort: http-frontend

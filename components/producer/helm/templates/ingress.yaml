@@ -1,0 +1,72 @@
+{{- /*
+  HAMq Producer Ingress
+  Routes external traffic to the frontend (/) and backend (/api, /ws).
+  Created only when ingress.enabled is true.
+*/ -}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "hamq-producer.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-producer.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Allow WebSocket upgrades for the /ws path
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+    {{- if and .Values.ingress.tls .Values.certManager.enabled }}
+    cert-manager.io/cluster-issuer: {{ .Values.certManager.issuerName | quote }}
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tlsSecretName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # API and WebSocket traffic → backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-producer.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-producer.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          {{- if .Values.monitoring.enabled }}
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: {{ include "hamq-producer.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          {{- end }}
+          # All other traffic → frontend SPA
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-producer.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.service.frontend.port }}
+{{- end }}

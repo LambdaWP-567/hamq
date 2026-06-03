@@ -1,0 +1,14 @@
+apiVersion: v2
+name: hamq-arbiter
+description: HAMq message-loss detection arbiter with web UI
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - kafka
+  - arbiter
+  - hamq
+  - message-loss
+home: https://github.com/lambdawp-567/hamq
+maintainers:
+  - name: HAMq Team

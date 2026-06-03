@@ -1,0 +1,38 @@
+---
+# Backend service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-controller.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.service.backend.type }}
+  selector:
+    {{- include "hamq-controller.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.backend.port }}
+      targetPort: http-backend
+      protocol: TCP
+---
+# Frontend service
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-controller.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.service.frontend.type }}
+  selector:
+    {{- include "hamq-controller.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.frontend.port }}
+      targetPort: http-frontend
+      protocol: TCP

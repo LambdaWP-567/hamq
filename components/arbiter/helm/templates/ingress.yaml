@@ -1,0 +1,61 @@
+{{- /*
+  HAMq Arbiter Ingress
+  Conditional on ingress.enabled — routes external traffic to both services.
+  The frontend is served at / and the backend API at /api and /ws.
+*/ -}}
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "hamq-arbiter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-arbiter.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className }}
+  {{- end }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    {{- toYaml .Values.ingress.tls | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # REST API and WebSocket traffic → backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-arbiter.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-arbiter.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          # Prometheus metrics endpoint
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-arbiter.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          # All other traffic → React SPA (frontend)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-arbiter.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.service.frontend.port }}
+{{- end }}

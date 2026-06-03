@@ -1,0 +1,186 @@
+{{- /*
+  HAMq Consumer Deployment
+  Two containers: backend (FastAPI, port 8001) and frontend (Nginx, port 3001).
+  All configuration comes from values.yaml via template variables.
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hamq-consumer.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-consumer.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hamq-consumer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "hamq-consumer.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Pod anti-affinity: prefer spreading replicas across nodes for HA
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "hamq-consumer.selectorLabels" . | nindent 20 }}
+        {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        # Kafka cluster CA certificate (created by Strimzi)
+        - name: kafka-ca-cert
+          secret:
+            secretName: {{ .Values.kafka.caCertSecret }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        # Kafka user TLS certificate and key (created by Strimzi User Operator)
+        - name: kafka-user-cert
+          secret:
+            secretName: {{ .Values.kafka.userSecret }}
+            items:
+              - key: user.crt
+                path: user.crt
+              - key: user.key
+                path: user.key
+        {{- if .Values.persistence.enabled }}
+        # Persistent volume for the SQLite message database
+        - name: consumer-data
+          persistentVolumeClaim:
+            claimName: {{ include "hamq-consumer.fullname" . }}-data
+        {{- end }}
+      containers:
+        # ---------------------------------------------------------------
+        # Backend container — FastAPI consumer service
+        # ---------------------------------------------------------------
+        - name: backend
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.backend.repository }}:{{ .Values.image.backend.tag }}"
+          imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+          ports:
+            - name: http-backend
+              containerPort: {{ .Values.service.backend.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "hamq-consumer.fullname" . }}-config
+          env:
+            # Auth secret — username and password for the UI login
+            - name: AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.secretName }}
+                  key: username
+            - name: AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.secretName }}
+                  key: password
+            # Use pod name as unique consumer ID when multiple replicas are deployed
+            - name: CONSUMER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: kafka-ca-cert
+              mountPath: /certs/ca
+              readOnly: true
+            - name: kafka-user-cert
+              mountPath: /certs/user
+              readOnly: true
+            {{- if .Values.persistence.enabled }}
+            - name: consumer-data
+              mountPath: /data
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http-backend
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http-backend
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.backend | nindent 12 }}
+        # ---------------------------------------------------------------
+        # Frontend container — Nginx serving the React SPA
+        # ---------------------------------------------------------------
+        - name: frontend
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.frontend.repository }}:{{ .Values.image.frontend.tag }}"
+          imagePullPolicy: {{ .Values.image.frontend.pullPolicy }}
+          ports:
+            - name: http-frontend
+              containerPort: {{ .Values.service.frontend.port }}
+              protocol: TCP
+          env:
+            - name: VITE_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "hamq-consumer.fullname" . }}-config
+                  key: VITE_API_URL
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http-frontend
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http-frontend
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.frontend | nindent 12 }}

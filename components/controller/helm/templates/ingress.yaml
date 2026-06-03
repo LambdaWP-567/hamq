@@ -1,0 +1,53 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "hamq-controller.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-controller.labels" . | nindent 4 }}
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Upgrade WebSocket connections for real-time status stream
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+spec:
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # API and WebSocket traffic → backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-controller.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-controller.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          - path: /metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-controller.fullname" . }}-backend
+                port:
+                  number: {{ .Values.service.backend.port }}
+          # All other traffic → frontend
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "hamq-controller.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.service.frontend.port }}
+{{- end }}

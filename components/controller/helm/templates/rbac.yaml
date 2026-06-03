@@ -1,0 +1,45 @@
+{{- if .Values.rbac.create }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "hamq-controller.fullname" . }}
+  labels:
+    {{- include "hamq-controller.labels" . | nindent 4 }}
+rules:
+  # Pod management — list/watch for status, delete to restart/chaos
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete", "deletecollection"]
+  # Node management — patch for cordon/uncordon
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch", "patch"]
+  # Drain operation uses pod eviction sub-resource
+  - apiGroups: [""]
+    resources: ["pods/eviction"]
+    verbs: ["create"]
+  # NetworkPolicy management for simulated network partitions
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["networkpolicies"]
+    verbs: ["get", "list", "create", "delete"]
+  # Namespace discovery
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "hamq-controller.fullname" . }}
+  labels:
+    {{- include "hamq-controller.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "hamq-controller.fullname" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "hamq-controller.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,158 @@
+# =============================================================================
+# HAMq Producer Helm Chart — values.yaml
+# All settings are exposed as Helm values; no hardcoded values in templates.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Container images
+# -----------------------------------------------------------------------------
+image:
+  backend:
+    repository: ghcr.io/lambdawp-567/hamq-producer
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: ghcr.io/lambdawp-567/hamq-producer-ui
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Number of producer pod replicas
+replicaCount: 1
+
+# -----------------------------------------------------------------------------
+# Kafka connection
+# -----------------------------------------------------------------------------
+kafka:
+  bootstrapServers: "hamq-kafka-bootstrap.kafka.svc.cluster.local:9093"
+  topic: "hamq-messages"
+  tlsEnabled: true
+  # Name of the Secret containing ca.crt (created by Strimzi cluster operator)
+  caCertSecret: "hamq-cluster-cluster-ca-cert"
+  # Name of the KafkaUser Secret containing user.crt / user.key
+  userSecret: "hamq-producer"
+
+# -----------------------------------------------------------------------------
+# Producer behaviour
+# -----------------------------------------------------------------------------
+producer:
+  id: "producer-1"
+  frequencyHz: 1.0
+  autostart: false
+  maxFrequencyHz: 1000.0
+
+# -----------------------------------------------------------------------------
+# Local SQLite buffer (offline buffer for resilience)
+# -----------------------------------------------------------------------------
+buffer:
+  dbPath: "/data/producer_buffer.db"
+  maxSize: 100000
+  flushIntervalS: 1.0
+  retryIntervalS: 5.0
+
+# -----------------------------------------------------------------------------
+# Authentication
+# -----------------------------------------------------------------------------
+auth:
+  # Secret must contain keys: username, password (used to seed the htpasswd)
+  secretName: "hamq-producer-auth"
+  tokenExpireMinutes: 1440
+
+# -----------------------------------------------------------------------------
+# Services
+# -----------------------------------------------------------------------------
+service:
+  backend:
+    type: ClusterIP
+    port: 8000
+  frontend:
+    type: ClusterIP
+    port: 3000
+
+# -----------------------------------------------------------------------------
+# Ingress
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: nginx
+  host: producer.hamq.local
+  tls: false
+  # tlsSecretName is used when tls: true
+  tlsSecretName: "hamq-producer-tls"
+  annotations: {}
+
+# -----------------------------------------------------------------------------
+# Resource requests and limits
+# -----------------------------------------------------------------------------
+resources:
+  backend:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  frontend:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 200m
+
+# -----------------------------------------------------------------------------
+# Persistence — PVC for the SQLite buffer database
+# -----------------------------------------------------------------------------
+persistence:
+  enabled: true
+  storageClass: standard
+  size: 1Gi
+  accessMode: ReadWriteOnce
+
+# -----------------------------------------------------------------------------
+# Monitoring — Prometheus ServiceMonitor
+# -----------------------------------------------------------------------------
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    # Prometheus scrape interval
+    interval: 30s
+    # Namespace where the ServiceMonitor CR is created
+    namespace: monitoring
+    # Labels added to the ServiceMonitor so Prometheus Operator finds it
+    additionalLabels:
+      release: prometheus
+
+# -----------------------------------------------------------------------------
+# cert-manager — optional TLS certificate for the Ingress
+# -----------------------------------------------------------------------------
+certManager:
+  enabled: true
+  issuerName: selfsigned-issuer
+  issuerKind: ClusterIssuer
+
+# -----------------------------------------------------------------------------
+# Autoscaling (disabled by default — producers use unique IDs per pod)
+# -----------------------------------------------------------------------------
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# -----------------------------------------------------------------------------
+# Pod-level settings
+# -----------------------------------------------------------------------------
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Image pull secrets for private registry
+imagePullSecrets: []
+
+# Override the chart name or fullname
+nameOverride: ""
+fullnameOverride: ""

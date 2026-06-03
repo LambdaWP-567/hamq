@@ -1,0 +1,35 @@
+{{- /*
+  HAMq Arbiter ConfigMap
+  Contains all non-secret environment variables for the backend container.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hamq-arbiter.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-arbiter.labels" . | nindent 4 }}
+data:
+  # Producer API endpoint(s) — comma-separated list of base URLs
+  PRODUCER_API_URLS: {{ .Values.arbiter.producerApiUrls | quote }}
+
+  # Consumer API endpoint
+  CONSUMER_API_URL: {{ .Values.arbiter.consumerApiUrl | quote }}
+
+  # Auto-reconcile interval in seconds
+  RECONCILE_INTERVAL_S: {{ .Values.arbiter.reconcileIntervalS | quote }}
+
+  # How far back to look when fetching sequences (seconds)
+  LOOKBACK_SECONDS: {{ .Values.arbiter.lookbackSeconds | quote }}
+
+  # Backend HTTP port
+  API_PORT: {{ .Values.service.backend.port | quote }}
+
+  # SQLite audit database path (inside the PVC mount)
+  DB_PATH: {{ .Values.persistence.mountPath | quote }}/arbiter_audit.db
+
+  # JWT token expiry
+  TOKEN_EXPIRE_MINUTES: {{ .Values.auth.tokenExpireMinutes | quote }}
+
+  # Frontend API URL (used for the Vite dev proxy and runtime config)
+  VITE_API_URL: ""

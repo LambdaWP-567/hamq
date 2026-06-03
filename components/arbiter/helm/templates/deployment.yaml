@@ -1,0 +1,172 @@
+{{- /*
+  HAMq Arbiter Deployment
+  Two containers: backend (FastAPI, port 8002) and frontend (Nginx, port 3002).
+  All configuration comes from values.yaml via the ConfigMap.
+*/ -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hamq-arbiter.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-arbiter.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "hamq-arbiter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Force rolling restart when the ConfigMap changes
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "hamq-arbiter.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # Pod anti-affinity: prefer spreading replicas across nodes for HA
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "hamq-arbiter.selectorLabels" . | nindent 20 }}
+        {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        # Persistent volume for the SQLite audit database
+        - name: audit-data
+          persistentVolumeClaim:
+            claimName: {{ include "hamq-arbiter.fullname" . }}-audit
+        {{- end }}
+      containers:
+        # ---------------------------------------------------------------
+        # Backend container — FastAPI arbiter service
+        # ---------------------------------------------------------------
+        - name: backend
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.backend.repository }}:{{ .Values.image.backend.tag }}"
+          imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+          ports:
+            - name: http-backend
+              containerPort: {{ .Values.service.backend.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "hamq-arbiter.fullname" . }}-config
+          env:
+            # Auth credentials for the UI login
+            - name: AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.secretName }}
+                  key: username
+            - name: AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.secretName }}
+                  key: password
+            # JWT signing secret
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.secretName }}
+                  key: secret_key
+                  optional: true
+            # Use pod name as unique arbiter ID when multiple replicas are deployed
+            - name: ARBITER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: audit-data
+              mountPath: {{ .Values.persistence.mountPath }}
+          {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http-backend
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http-backend
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.backend | nindent 12 }}
+        # ---------------------------------------------------------------
+        # Frontend container — Nginx serving the React SPA
+        # ---------------------------------------------------------------
+        - name: frontend
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.frontend.repository }}:{{ .Values.image.frontend.tag }}"
+          imagePullPolicy: {{ .Values.image.frontend.pullPolicy }}
+          ports:
+            - name: http-frontend
+              containerPort: {{ .Values.service.frontend.port }}
+              protocol: TCP
+          env:
+            - name: VITE_API_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "hamq-arbiter.fullname" . }}-config
+                  key: VITE_API_URL
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http-frontend
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http-frontend
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 5
+          resources:
+            {{- toYaml .Values.resources.frontend | nindent 12 }}

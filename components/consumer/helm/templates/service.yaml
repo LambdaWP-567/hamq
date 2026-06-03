@@ -1,0 +1,48 @@
+{{- /*
+  HAMq Consumer Services
+  Backend service (port 8001) and Frontend service (port 3001).
+*/ -}}
+---
+# Backend service — exposes the FastAPI consumer API
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-consumer.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-consumer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.service.backend.type }}
+  selector:
+    {{- include "hamq-consumer.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.service.backend.port }}
+      targetPort: http-backend
+    {{- if .Values.monitoring.enabled }}
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: metrics
+    {{- end }}
+---
+# Frontend service — exposes the Nginx-served React SPA
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-consumer.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-consumer.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.service.frontend.type }}
+  selector:
+    {{- include "hamq-consumer.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.service.frontend.port }}
+      targetPort: http-frontend
