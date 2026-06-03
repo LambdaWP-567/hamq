@@ -3,7 +3,8 @@
     "title": "HAMq Arbiter",
     "dashboard": "Dashboard",
     "audits": "Audit Log",
-    "stats": "Statistics"
+    "stats": "Statistics",
+    "gaps": "Gap Report"
   },
   "status": {
     "running": "Running",

@@ -3,7 +3,8 @@
     "title": "HAMq Schiedsrichter",
     "dashboard": "Dashboard",
     "audits": "Prüfprotokoll",
-    "stats": "Statistiken"
+    "stats": "Statistiken",
+    "gaps": "Lückenbericht"
   },
   "status": {
     "running": "Aktiv",

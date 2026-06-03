@@ -1,0 +1,42 @@
+# =============================================================================
+# Prometheus configuration for HAMq local docker-compose stack
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: local
+
+scrape_configs:
+  # Producer metrics
+  - job_name: hamq-producer
+    static_configs:
+      - targets: ["producer:8000"]
+        labels:
+          component: producer
+    metrics_path: /metrics
+
+  # Consumer metrics
+  - job_name: hamq-consumer
+    static_configs:
+      - targets: ["consumer:8001"]
+        labels:
+          component: consumer
+    metrics_path: /metrics
+
+  # Arbiter metrics
+  - job_name: hamq-arbiter
+    static_configs:
+      - targets: ["arbiter:8002"]
+        labels:
+          component: arbiter
+    metrics_path: /metrics
+
+  # Controller metrics
+  - job_name: hamq-controller
+    static_configs:
+      - targets: ["controller:8003"]
+        labels:
+          component: controller
+    metrics_path: /metrics
