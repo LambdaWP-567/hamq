@@ -1,0 +1,49 @@
+{
+  "nav": {
+    "title": "HAMq Producer",
+    "logout": "Logout"
+  },
+  "status": {
+    "running": "Running",
+    "stopped": "Stopped",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "buffered": "Buffered Messages",
+    "sent": "Sent Messages",
+    "errors": "Errors",
+    "sequence": "Last Sequence",
+    "frequency": "Current Frequency"
+  },
+  "controls": {
+    "start": "Start",
+    "stop": "Stop",
+    "frequency": "Frequency (msg/s)",
+    "apply": "Apply",
+    "frequencyHint": "Valid range: 1 – 1000 msg/s"
+  },
+  "login": {
+    "title": "Sign In",
+    "subtitle": "HAMq Producer Control Panel",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Sign In",
+    "error": "Invalid credentials"
+  },
+  "chart": {
+    "title": "Message Rate",
+    "sent": "Sent",
+    "buffered": "Buffered"
+  },
+  "messages": {
+    "recent": "Recent Messages",
+    "id": "ID",
+    "sequence": "Sequence",
+    "timestamp": "Timestamp",
+    "frequency": "Frequency",
+    "noMessages": "No messages yet"
+  },
+  "lang": {
+    "de": "Deutsch",
+    "en": "English"
+  }
+}
