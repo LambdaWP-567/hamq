@@ -1,0 +1,23 @@
+name: Security Scan
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # every Monday 6am UTC
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        component: [producer, consumer, arbiter, controller]
+    steps:
+      - uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/lambdawp-567/hamq-${{ matrix.component }}:latest
+          format: sarif
+          output: trivy-${{ matrix.component }}.sarif
+          severity: CRITICAL,HIGH
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-${{ matrix.component }}.sarif

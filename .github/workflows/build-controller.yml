@@ -1,0 +1,82 @@
+name: Build Controller
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'components/controller/**'
+      - '.github/workflows/build-controller.yml'
+  pull_request:
+    paths:
+      - 'components/controller/**'
+  workflow_call:  # allows being called from build-all.yml
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/hamq-controller
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          pip install -r components/controller/backend/requirements.txt
+          pip install pytest-mock
+      - name: Run tests
+        run: pytest components/controller/backend/tests/ -v
+        env:
+          AUTH_USERNAME: testuser
+          AUTH_PASSWORD_HASH: "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry"
+          AUTH_SECRET_KEY: test-secret-key
+          DB_PATH: "/tmp/test_controller.db"
+          CONTROLLER_ID: test-controller
+          API_PORT: "8003"
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: components/controller/backend
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  container-smoke-test:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run container smoke test
+        run: bash components/controller/tests/test_container.sh
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
