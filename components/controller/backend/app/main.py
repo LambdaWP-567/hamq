@@ -17,7 +17,8 @@ from typing import AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import make_asgi_app
+from fastapi.responses import Response
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.api.routes import router
 from app.chaos_engine import ChaosEngine
@@ -131,10 +132,11 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Prometheus /metrics endpoint
 # ---------------------------------------------------------------------------
-# Mounted as a sub-application so it bypasses FastAPI's routing and
-# returns the plain-text Prometheus exposition format directly.
-_prometheus_app = make_asgi_app()
-app.mount("/metrics", _prometheus_app)
+@app.get("/metrics", include_in_schema=False)
+async def metrics() -> Response:
+    """Expose Prometheus metrics in text exposition format. No auth required."""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
 
 # ---------------------------------------------------------------------------
 # API routes

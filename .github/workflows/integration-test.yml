@@ -70,7 +70,7 @@ jobs:
             -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
             -e KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true \
             -e ALLOW_PLAINTEXT_LISTENER=yes \
-            bitnami/kafka:3.8
+            bitnami/kafka:3.9
 
       - name: Wait for Kafka to be ready
         run: |
