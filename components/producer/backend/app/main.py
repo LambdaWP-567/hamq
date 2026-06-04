@@ -123,7 +123,7 @@ def create_app() -> FastAPI:
             "SQLite-backed local buffer, real-time WebSocket status streaming, "
             "and a React management UI."
         ),
-        version="1.0.0",
+        version=os.getenv("APP_VERSION", "1.0.0"),
         lifespan=lifespan,
         # Disable automatic /docs redirect so it doesn't conflict with the
         # React SPA served at /

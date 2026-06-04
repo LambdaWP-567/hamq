@@ -87,7 +87,7 @@ app = FastAPI(
         "HAMq Consumer — receives messages from Kafka, persists them to SQLite, "
         "and exposes a REST + WebSocket API for the Arbiter and the React SPA."
     ),
-    version="1.0.0",
+    version=os.getenv("APP_VERSION", "1.0.0"),
     lifespan=lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",

@@ -19,6 +19,7 @@ obtained from ``/api/auth/login``.
 
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, status
@@ -73,6 +74,15 @@ async def health(request: Request) -> Dict[str, str]:
         "status": "ok",
         "producer_id": producer_service._producer_id,
     }
+
+
+@router.get(
+    "/api/version",
+    summary="Component version",
+    tags=["ops"],
+)
+async def get_version() -> Dict[str, str]:
+    return {"version": os.getenv("APP_VERSION", "1.0.0")}
 
 
 @router.get(

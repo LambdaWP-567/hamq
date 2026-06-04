@@ -30,9 +30,12 @@ RUN npm run build
 # ─── Stage 2: Python runtime ──────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
+ARG APP_VERSION=1.0.0
+ENV APP_VERSION=${APP_VERSION}
+
 LABEL org.opencontainers.image.title="HAMq Producer" \
       org.opencontainers.image.description="Resilient Kafka message producer — FastAPI + React UI" \
-      org.opencontainers.image.version="1.0.0"
+      org.opencontainers.image.version="${APP_VERSION}"
 
 # Install curl for the Docker HEALTHCHECK
 RUN apt-get update && apt-get install -y --no-install-recommends curl \

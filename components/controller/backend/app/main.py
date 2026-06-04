@@ -11,6 +11,7 @@ Start the server:
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
@@ -102,7 +103,7 @@ app = FastAPI(
         "Provides REST endpoints to restart Kafka pods, cordon/drain nodes, "
         "inject network partitions, and run scheduled chaos experiments."
     ),
-    version="1.0.0",
+    version=os.getenv("APP_VERSION", "1.0.0"),
     lifespan=lifespan,
     # Disable the default /docs and /redoc in production if desired
     docs_url="/docs",

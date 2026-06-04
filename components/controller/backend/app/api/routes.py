@@ -35,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
@@ -117,6 +118,15 @@ async def login(request: LoginRequest) -> TokenResponse:
 async def health() -> Dict[str, str]:
     """Simple liveness probe — returns 200 when the process is running."""
     return {"status": "ok"}
+
+
+@router.get(
+    "/api/version",
+    summary="Component version",
+    tags=["health"],
+)
+async def get_version() -> Dict[str, str]:
+    return {"version": os.getenv("APP_VERSION", "1.0.0")}
 
 
 # ---------------------------------------------------------------------------

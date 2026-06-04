@@ -25,9 +25,12 @@ RUN npm run build
 # ─── Stage 2: Python runtime ──────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
+ARG APP_VERSION=1.0.0
+ENV APP_VERSION=${APP_VERSION}
+
 LABEL org.opencontainers.image.title="HAMq Arbiter" \
       org.opencontainers.image.description="Message-loss detection arbiter — FastAPI + React UI" \
-      org.opencontainers.image.version="1.0.0"
+      org.opencontainers.image.version="${APP_VERSION}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends gcc libffi-dev \
     && rm -rf /var/lib/apt/lists/*

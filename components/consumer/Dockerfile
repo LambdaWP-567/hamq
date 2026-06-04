@@ -42,6 +42,13 @@ RUN npm run build
 # ──────────────────────────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
+ARG APP_VERSION=1.0.0
+ENV APP_VERSION=${APP_VERSION}
+
+LABEL org.opencontainers.image.title="HAMq Consumer" \
+      org.opencontainers.image.description="Kafka consumer backend — FastAPI + React UI" \
+      org.opencontainers.image.version="${APP_VERSION}"
+
 # Security hardening: run as non-root user.
 RUN groupadd --gid 1001 hamq && \
     useradd --uid 1001 --gid 1001 --no-create-home hamq

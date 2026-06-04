@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from datetime import timedelta
 from typing import List, Optional
 
@@ -118,8 +119,17 @@ async def health() -> dict:
     return {
         "status": "ok",
         "consumer_id": settings.CONSUMER_ID,
-        "version": "1.0.0",
+        "version": os.getenv("APP_VERSION", "1.0.0"),
     }
+
+
+@router.get(
+    "/api/version",
+    summary="Component version",
+    tags=["health"],
+)
+async def get_version() -> dict:
+    return {"version": os.getenv("APP_VERSION", "1.0.0")}
 
 
 # --------------------------------------------------------------------------- #

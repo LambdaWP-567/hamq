@@ -61,6 +61,9 @@ jobs:
             type=ref,event=pr
             type=sha,prefix=sha-
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+      - name: Read version
+        id: version
+        run: echo "value=$(cat components/consumer/VERSION)" >> $GITHUB_OUTPUT
       - uses: docker/build-push-action@v6
         with:
           # Context is the component root so both frontend/ and backend/ are accessible
@@ -68,6 +71,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: APP_VERSION=${{ steps.version.outputs.value }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

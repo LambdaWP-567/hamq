@@ -25,6 +25,7 @@ and also sends a ReconcileReport JSON blob after each reconcile pass.
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
@@ -188,6 +189,15 @@ async def health():
     Kubernetes liveness and readiness probes target this endpoint.
     """
     return {"status": "ok"}
+
+
+@router.get(
+    "/api/version",
+    summary="Component version",
+    tags=["health"],
+)
+async def get_version():
+    return {"version": os.getenv("APP_VERSION", "1.0.0")}
 
 
 @router.get(

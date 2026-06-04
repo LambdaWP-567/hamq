@@ -114,7 +114,7 @@ app = FastAPI(
         "The HAMq Arbiter reconciles sent and received message sequences "
         "to detect message loss and compute per-producer loss rates."
     ),
-    version="1.0.0",
+    version=os.getenv("APP_VERSION", "1.0.0"),
     lifespan=lifespan,
     # Disable automatic redirection of /path/ → /path to avoid surprises behind
     # Kubernetes Ingress controllers that may not follow redirects.
