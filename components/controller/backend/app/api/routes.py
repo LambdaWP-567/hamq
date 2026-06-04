@@ -37,7 +37,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, WebSocket, WebSocketDisconnect, status
 
 from app.auth import get_current_user, login_for_access_token
 from app.chaos_engine import ChaosEngine
@@ -130,7 +130,7 @@ async def health() -> Dict[str, str]:
     tags=["status"],
 )
 async def get_status(
-    request: Any,
+    request: Request,
     _user: str = Depends(get_current_user),
 ) -> ControllerStatus:
     """
@@ -179,7 +179,7 @@ async def get_status(
     tags=["pods"],
 )
 async def list_pods(
-    request: Any,
+    request: Request,
     _user: str = Depends(get_current_user),
 ) -> List[PodInfo]:
     """Returns all Kafka broker pods matching the configured label selector."""
@@ -195,7 +195,7 @@ async def list_pods(
     tags=["pods"],
 )
 async def restart_pod(
-    request: Any,
+    request: Request,
     name: str,
     _user: str = Depends(get_current_user),
 ) -> ClusterEvent:
@@ -222,7 +222,7 @@ async def restart_pod(
     tags=["pods"],
 )
 async def delete_pod(
-    request: Any,
+    request: Request,
     name: str,
     _user: str = Depends(get_current_user),
 ) -> ClusterEvent:
@@ -253,7 +253,7 @@ async def delete_pod(
     tags=["nodes"],
 )
 async def list_nodes(
-    request: Any,
+    request: Request,
     _user: str = Depends(get_current_user),
 ) -> List[NodeInfo]:
     """Returns all Kubernetes nodes with scheduling state and conditions."""
@@ -268,7 +268,7 @@ async def list_nodes(
     tags=["nodes"],
 )
 async def cordon_node(
-    request: Any,
+    request: Request,
     name: str,
     _user: str = Depends(get_current_user),
 ) -> ClusterEvent:
@@ -294,7 +294,7 @@ async def cordon_node(
     tags=["nodes"],
 )
 async def uncordon_node(
-    request: Any,
+    request: Request,
     name: str,
     _user: str = Depends(get_current_user),
 ) -> ClusterEvent:
@@ -315,7 +315,7 @@ async def uncordon_node(
     tags=["nodes"],
 )
 async def drain_node(
-    request: Any,
+    request: Request,
     name: str,
     ignore_daemonsets: bool = Query(default=True, description="Skip DaemonSet pods"),
     force: bool = Query(default=False, description="Evict unmanaged (static) pods"),
@@ -351,7 +351,7 @@ async def drain_node(
     tags=["network"],
 )
 async def list_network_policies(
-    request: Any,
+    request: Request,
     namespace: Optional[str] = Query(default=None, description="Namespace to query"),
     _user: str = Depends(get_current_user),
 ) -> List:
@@ -374,7 +374,7 @@ async def list_network_policies(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_network_partition(
-    request: Any,
+    request: Request,
     body: NetworkPartitionRequest,
     _user: str = Depends(get_current_user),
 ) -> ClusterEvent:
@@ -408,7 +408,7 @@ async def create_network_partition(
     tags=["network"],
 )
 async def delete_network_partition(
-    request: Any,
+    request: Request,
     name: str,
     namespace: Optional[str] = Query(default=None, description="Namespace of the policy"),
     _user: str = Depends(get_current_user),
@@ -445,7 +445,7 @@ async def delete_network_partition(
     tags=["chaos"],
 )
 async def run_chaos(
-    request: Any,
+    request: Request,
     config: ChaosConfig,
     _user: str = Depends(get_current_user),
 ) -> ClusterEvent:
@@ -471,7 +471,7 @@ async def run_chaos(
     tags=["chaos"],
 )
 async def chaos_status(
-    request: Any,
+    request: Request,
     _user: str = Depends(get_current_user),
 ) -> Optional[ClusterEvent]:
     """Returns the most recent ClusterEvent produced by the chaos engine, or null."""
@@ -490,7 +490,7 @@ async def chaos_status(
     tags=["events"],
 )
 async def get_events(
-    request: Any,
+    request: Request,
     limit: int = Query(default=100, ge=1, le=1000, description="Maximum events to return"),
     event_type: Optional[str] = Query(default=None, description="Filter by event type"),
     _user: str = Depends(get_current_user),

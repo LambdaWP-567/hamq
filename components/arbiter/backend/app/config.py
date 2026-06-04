@@ -119,10 +119,10 @@ class Settings(BaseSettings):
         description="API username for JWT login"
     )
     # Default hash is bcrypt of "admin" — MUST be changed in production.
-    # Generate with: python -c "from passlib.hash import bcrypt; print(bcrypt.hash('secret'))"
+    # Generate with: python -c "import bcrypt; print(bcrypt.hashpw(b'secret', bcrypt.gensalt()).decode())"
     AUTH_PASSWORD_HASH: str = Field(
-        default="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry",
-        description="bcrypt hash of the API password (use passlib to generate a new one)"
+        default="$2b$12$SHeIYmhukN6bQiD34QFFGOG3hw49eXplUSEqjwCzgJKQCphfNl1mi",
+        description="bcrypt hash of the API password — default is bcrypt('admin')"
     )
     AUTH_SECRET_KEY: str = Field(
         default="change-me-in-production",

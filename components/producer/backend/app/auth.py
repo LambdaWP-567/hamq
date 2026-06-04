@@ -15,18 +15,11 @@ from typing import Any, Dict, Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+import bcrypt as _bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
 from app.models import LoginRequest, TokenResponse
-
-# ---------------------------------------------------------------------------
-# Password hashing context
-# ---------------------------------------------------------------------------
-# bcrypt is the recommended algorithm — it's deliberately slow and includes
-# a salt, making brute-force attacks expensive.
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 scheme — FastAPI will look for "Authorization: Bearer <token>"
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -51,7 +44,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     bool
         True if the password matches, False otherwise.
     """
-    return _pwd_context.verify(plain_password, hashed_password)
+    return _bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def create_access_token(

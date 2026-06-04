@@ -102,8 +102,8 @@ class Settings(BaseSettings):
     )
     # Default hash is bcrypt of "admin" — MUST be changed in production.
     AUTH_PASSWORD_HASH: str = Field(
-        default="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry",
-        description="bcrypt hash of the API password (use passlib to generate)"
+        default="$2b$12$SHeIYmhukN6bQiD34QFFGOG3hw49eXplUSEqjwCzgJKQCphfNl1mi",
+        description="bcrypt hash of the API password — default is bcrypt('admin')"
     )
     AUTH_SECRET_KEY: str = Field(
         default="change-me-in-production",

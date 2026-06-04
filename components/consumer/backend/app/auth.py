@@ -17,29 +17,24 @@ from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+import bcrypt as _bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from .config import settings
 
 
 # --------------------------------------------------------------------------- #
-#  Password hashing
+#  Password hashing — using bcrypt directly (passlib 1.7 is incompatible with bcrypt>=4)
 # --------------------------------------------------------------------------- #
-
-# Use bcrypt as the hashing algorithm.  deprecated="auto" means legacy hashes
-# are automatically re-hashed on next verification (transparent migration).
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 
 def verify_password(plain: str, hashed: str) -> bool:
     """Return True if *plain* matches the stored *hashed* password."""
-    return _pwd_context.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def hash_password(plain: str) -> str:
-    """Hash a plain-text password for storage.  Utility for tooling / tests."""
-    return _pwd_context.hash(plain)
+    """Hash a plain-text password for storage. Utility for tooling / tests."""
+    return _bcrypt.hashpw(plain.encode("utf-8"), _bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 # --------------------------------------------------------------------------- #

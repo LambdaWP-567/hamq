@@ -71,9 +71,9 @@ class Settings(BaseSettings):
     AUTH_USERNAME: str = "admin"
 
     # Bcrypt hash of the password.  Generate a new one with:
-    #   python -c "from passlib.hash import bcrypt; print(bcrypt.hash('secret'))"
+    #   python -c "import bcrypt; print(bcrypt.hashpw(b'secret', bcrypt.gensalt()).decode())"
     AUTH_PASSWORD_HASH: str = (
-        "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry"
+        "$2b$12$SHeIYmhukN6bQiD34QFFGOG3hw49eXplUSEqjwCzgJKQCphfNl1mi"
     )
 
     # HMAC signing secret for JWTs.  Must be changed in production.

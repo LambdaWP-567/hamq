@@ -84,25 +84,39 @@ def bad_checksum_message():
 async def client():
     """
     Return an async httpx TestClient for the FastAPI app.
-    The ConsumerService is initialised with a temp SQLite database and the
-    Kafka consumer is NOT started (no broker required for unit tests).
+
+    The ConsumerService is initialised directly here (not via lifespan) so that
+    tests run without a real Kafka broker.  ASGITransport does not trigger the
+    ASGI lifespan, so we bootstrap the service manually and inject it via
+    set_service() before yielding the client.
     """
     import os
     import tempfile
 
-    # Point DB_PATH at a temp file so tests don't pollute /data.
     tmp = tempfile.mktemp(suffix=".db")
-    os.environ.setdefault("DB_PATH", tmp)
+    # Force DB_PATH for this test run (may already be set by CI env)
+    os.environ["DB_PATH"] = tmp
 
+    # Import after setting env so Settings picks up the temp path
     from httpx import AsyncClient, ASGITransport
     from app.main import app
+    from app.consumer_service import ConsumerService
+    import app.api.routes as _routes
+
+    # Initialise a real service (opens SQLite, starts stats loop).
+    # Kafka consumer is NOT started — no broker needed for unit tests.
+    svc = ConsumerService()
+    await svc.initialize()
+    _routes.set_service(svc)
 
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://test"
     ) as ac:
         yield ac
 
-    # Clean up the temp database.
+    # Teardown: stop the service and remove the temp database.
+    await svc.shutdown()
+    _routes.set_service(None)  # type: ignore[arg-type]
     if os.path.exists(tmp):
         os.remove(tmp)
 

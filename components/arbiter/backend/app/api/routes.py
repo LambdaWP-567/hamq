@@ -39,8 +39,8 @@ from fastapi import (
     status,
 )
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import bcrypt as _bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
@@ -65,7 +65,6 @@ router = APIRouter()
 # Security helpers
 # ---------------------------------------------------------------------------
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 ALGORITHM = "HS256"
@@ -73,7 +72,7 @@ ALGORITHM = "HS256"
 
 def _verify_password(plain: str, hashed: str) -> bool:
     """Return True if plain matches the stored bcrypt hash."""
-    return _pwd_context.verify(plain, hashed)
+    return _bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
 
 
 def _create_access_token(sub: str, expires_delta: timedelta) -> str:
