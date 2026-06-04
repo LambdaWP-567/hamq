@@ -75,15 +75,18 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
   }, [connected])
 
   // ------------------------------------------------------------------
-  // Fetch initial status
+  // Poll status every 2 s (WebSocket pushes faster updates on top)
   // ------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false
-    api
-      .getStatus()
-      .then((s) => { if (!cancelled) setStatus(s) })
-      .catch(() => { /* will arrive via WebSocket */ })
-    return () => { cancelled = true }
+    const fetchStatus = () => {
+      api.getStatus()
+        .then((s) => { if (!cancelled) setStatus(s) })
+        .catch(() => {})
+    }
+    fetchStatus()
+    const id = setInterval(fetchStatus, 2000)
+    return () => { cancelled = true; clearInterval(id) }
   }, [api])
 
   // ------------------------------------------------------------------

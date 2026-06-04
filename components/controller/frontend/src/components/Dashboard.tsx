@@ -55,8 +55,12 @@ const Dashboard: React.FC = () => {
     }
   }, [api])
 
-  // Initial load
-  useEffect(() => { fetchStatus() }, [fetchStatus])
+  // Poll every 2 s — WebSocket pushes faster updates on top
+  useEffect(() => {
+    fetchStatus()
+    const id = setInterval(fetchStatus, 2000)
+    return () => clearInterval(id)
+  }, [fetchStatus])
 
   // Update on WebSocket push
   useEffect(() => {

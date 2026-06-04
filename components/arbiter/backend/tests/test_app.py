@@ -122,7 +122,7 @@ def test_auth_valid_credentials():
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post(
             "/api/auth/login",
-            data={"username": settings.AUTH_USERNAME, "password": "admin"},
+            json={"username": settings.AUTH_USERNAME, "password": "admin"},
         )
         assert resp.status_code == 200
         body = resp.json()
@@ -144,7 +144,7 @@ def test_auth_invalid_credentials():
         client = TestClient(app, raise_server_exceptions=False)
         resp = client.post(
             "/api/auth/login",
-            data={"username": "admin", "password": "wrong-password"},
+            json={"username": "admin", "password": "wrong-password"},
         )
         assert resp.status_code == 401
 
@@ -429,7 +429,7 @@ def test_manual_reconcile_endpoint():
             # First obtain a JWT
             login_resp = client.post(
                 "/api/auth/login",
-                data={"username": settings.AUTH_USERNAME, "password": "admin"},
+                json={"username": settings.AUTH_USERNAME, "password": "admin"},
             )
             assert login_resp.status_code == 200
             token = login_resp.json()["access_token"]

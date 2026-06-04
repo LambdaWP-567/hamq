@@ -113,7 +113,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
     const interval = setInterval(() => {
       fetchStatus()
       fetchStats()
-    }, 5000)
+    }, 2000)
     return () => clearInterval(interval)
   }, [fetchStatus, fetchStats])
 

@@ -144,15 +144,21 @@ jobs:
       - name: Obtain auth token for producer
         id: producer_token
         run: |
-          TOKEN=$(curl -sf -X POST http://localhost:18000/api/v1/auth/token \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "username=admin&password=admin" | jq -r .access_token)
+          TOKEN=$(curl -sf -X POST http://localhost:18000/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
           echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
 
       - name: Start producing at 10 msg/s for 15 seconds
         run: |
-          # Start the producer
+          # Start the producer (v1 alias route)
           curl -sf -X POST http://localhost:18000/api/v1/producer/start \
+            -H "Authorization: Bearer ${{ steps.producer_token.outputs.token }}" \
+            -H "Content-Type: application/json" \
+            -d '{"frequency_hz": 10}' || true
+
+          # Also set frequency via v1 route
+          curl -sf -X PUT http://localhost:18000/api/v1/producer/frequency \
             -H "Authorization: Bearer ${{ steps.producer_token.outputs.token }}" \
             -H "Content-Type: application/json" \
             -d '{"frequency_hz": 10}' || true
@@ -170,20 +176,21 @@ jobs:
       - name: Obtain auth token for consumer
         id: consumer_token
         run: |
-          TOKEN=$(curl -sf -X POST http://localhost:18001/api/v1/auth/token \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            -d "username=admin&password=admin" | jq -r .access_token)
+          TOKEN=$(curl -sf -X POST http://localhost:18001/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
           echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
 
       - name: Verify message counts (sent ≈ received, no loss > 1%)
         run: |
-          SENT=$(curl -sf http://localhost:18000/api/v1/producer/stats \
+          # /api/status returns sent_count and received_count
+          SENT=$(curl -sf http://localhost:18000/api/status \
             -H "Authorization: Bearer ${{ steps.producer_token.outputs.token }}" \
-            | jq -r .messages_sent)
+            | jq -r .sent_count)
 
-          RECEIVED=$(curl -sf http://localhost:18001/api/v1/consumer/stats \
+          RECEIVED=$(curl -sf http://localhost:18001/api/status \
             -H "Authorization: Bearer ${{ steps.consumer_token.outputs.token }}" \
-            | jq -r .messages_received)
+            | jq -r .received_count)
 
           echo "Sent: ${SENT}, Received: ${RECEIVED}"
 
