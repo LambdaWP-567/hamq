@@ -39,7 +39,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 import bcrypt as _bcrypt
 from jose import JWTError, jwt
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -147,20 +147,20 @@ def _get_reconciler(request: Request) -> Reconciler:
     summary="Obtain a JWT access token",
     tags=["auth"],
 )
-async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
+async def login(request: LoginRequest):
     """
-    Validate username + password and return a signed JWT.
+    Validate username + password (JSON body) and return a signed JWT.
 
     The token is valid for AUTH_TOKEN_EXPIRE_MINUTES minutes (default: 24 h).
     Include it in subsequent requests as ``Authorization: Bearer <token>``.
     """
-    if form_data.username != settings.AUTH_USERNAME:
+    if request.username != settings.AUTH_USERNAME:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    if not _verify_password(form_data.password, settings.AUTH_PASSWORD_HASH):
+    if not _verify_password(request.password, settings.AUTH_PASSWORD_HASH):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -168,7 +168,7 @@ async def login(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
         )
 
     token = _create_access_token(
-        sub=form_data.username,
+        sub=request.username,
         expires_delta=timedelta(minutes=settings.AUTH_TOKEN_EXPIRE_MINUTES),
     )
     return TokenResponse(access_token=token)

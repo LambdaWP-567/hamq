@@ -53,30 +53,33 @@ jobs:
           load: true
 
       # ── Start Kafka (single broker for CI) ───────────────────────────────────
-      - name: Start Kafka (Bitnami single-node)
+      - name: Start Kafka (Apache KRaft single-node)
         run: |
           docker network create hamq-test-net
 
-          # Start Kafka in KRaft mode (no Zookeeper) for speed in CI
+          # apache/kafka uses KRaft natively — no Zookeeper, no Bitnami wrapper
           docker run -d \
             --name kafka-test \
+            --hostname kafka-test \
             --network hamq-test-net \
-            -e KAFKA_CFG_NODE_ID=1 \
-            -e KAFKA_CFG_PROCESS_ROLES=broker,controller \
-            -e KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka-test:9093 \
-            -e KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
-            -e KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka-test:9092 \
-            -e KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT \
-            -e KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER \
-            -e KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true \
-            -e ALLOW_PLAINTEXT_LISTENER=yes \
-            bitnami/kafka:3.9
+            -e KAFKA_NODE_ID=1 \
+            -e KAFKA_PROCESS_ROLES=broker,controller \
+            -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-test:9093 \
+            -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 \
+            -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-test:9092 \
+            -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT \
+            -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+            -e KAFKA_AUTO_CREATE_TOPICS_ENABLE=true \
+            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+            -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=1 \
+            -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=1 \
+            apache/kafka:3.8.1
 
       - name: Wait for Kafka to be ready
         run: |
           echo "Waiting for Kafka to accept connections…"
           for i in $(seq 1 30); do
-            if docker exec kafka-test kafka-topics.sh \
+            if docker exec kafka-test /opt/kafka/bin/kafka-topics.sh \
               --bootstrap-server localhost:9092 --list >/dev/null 2>&1; then
               echo "Kafka is ready after ${i}×2s"
               break
@@ -86,7 +89,7 @@ jobs:
 
       - name: Create hamq-messages topic
         run: |
-          docker exec kafka-test kafka-topics.sh \
+          docker exec kafka-test /opt/kafka/bin/kafka-topics.sh \
             --bootstrap-server localhost:9092 \
             --create --topic hamq-messages \
             --partitions 3 --replication-factor 1 \
