@@ -89,3 +89,98 @@ helm install controller  components/controller/helm  -n hamq
 
 GitHub Actions pipelines build and push Docker images on every push to `main` or component-specific branches.
 See [`.github/workflows/`](.github/workflows/).
+
+---
+
+## Test Cluster Deployment (KVM / k3s)
+
+This section documents how to spin up a local 3-node k3s cluster on KVM, deploy HAMq to it, and access all UIs from the host LAN.
+
+### Requirements
+
+| Requirement | Version / Notes |
+|-------------|----------------|
+| Linux host | Debian / Ubuntu recommended |
+| CPU | Intel/AMD with VT-x or AMD-V (`/dev/kvm` must exist) |
+| RAM | ≥ 8 GB (3 × 2 GB VMs + 2 GB host headroom) |
+| Disk | ≥ 40 GB free |
+| `helm` | v3.x or v4.x |
+| `kubectl` | any recent version |
+| GitHub PAT | `read:packages` scope — for pulling GHCR images |
+
+Packages installed automatically by `infra/setup-cluster.sh`:
+`qemu-kvm libvirt-daemon-system libvirt-clients virtinst cloud-image-utils`
+
+### 1 — Provision the k3s cluster
+
+```bash
+sudo bash infra/setup-cluster.sh 2>&1 | tee /tmp/cluster-setup.log
+```
+
+Creates 3 Ubuntu 24.04 VMs (`k3s-cp`, `k3s-w1`, `k3s-w2`) on libvirt NAT network `192.168.122.0/24`, installs k3s via k3sup, and writes `infra/kubeconfig`.
+
+### 2 — Install MetalLB and expose UIs to the LAN
+
+```bash
+sudo bash infra/setup-metallb.sh 2>&1 | tee /tmp/metallb-setup.log
+```
+
+- Disables k3s built-in `servicelb`
+- Installs MetalLB with L2 pool `192.168.122.200–210`
+- Traefik gets `192.168.122.200` as its LoadBalancer IP
+- Creates proxy `Endpoints + Ingress` in the existing single-node k3s cluster (reachable at `192.168.1.22`) so that `*.hamq.local` is accessible from the full LAN on port 80
+- Adds `/etc/hosts` entries on the host
+
+### 3 — Deploy HAMq
+
+```bash
+export GHCR_TOKEN=<your-github-pat>
+bash infra/deploy.sh 2>&1 | tee /tmp/deploy.log
+```
+
+Deploys Strimzi + Kafka 4.1.0 (3 brokers) and all 4 application components.
+
+### Access the UIs
+
+Add this line to `/etc/hosts` on **any machine on the LAN**:
+
+```
+192.168.1.22  producer.hamq.local  consumer.hamq.local  arbiter.hamq.local  controller.hamq.local
+```
+
+Then open in a browser:
+
+| Service | URL | Default credentials |
+|---------|-----|---------------------|
+| Producer | http://producer.hamq.local | admin / admin |
+| Consumer | http://consumer.hamq.local | admin / admin |
+| Arbiter  | http://arbiter.hamq.local  | admin / admin |
+| Controller | http://controller.hamq.local | admin / admin |
+
+### Tear down
+
+```bash
+# Keep Ubuntu base image (fast re-provision)
+sudo bash infra/teardown-cluster.sh
+
+# Wipe everything including base image, SSH key, k3sup
+sudo bash infra/teardown-cluster.sh --purge
+```
+
+### Network topology
+
+```
+LAN (192.168.1.0/24)
+  │
+  ├── cubecluster  192.168.1.22   ← host + single-node k3s (existing)
+  │     │  Traefik :80 proxies *.hamq.local → 192.168.122.200
+  │     │
+  │     └── virbr0  192.168.122.1  (libvirt NAT bridge)
+  │           │
+  │           ├── k3s-cp   192.168.122.10   control-plane
+  │           ├── k3s-w1   192.168.122.159  worker
+  │           └── k3s-w2   192.168.122.18   worker
+  │                 │
+  │                 └── MetalLB → Traefik  192.168.122.200
+  │                       routes producer/consumer/arbiter/controller
+```
