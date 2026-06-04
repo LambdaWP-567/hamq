@@ -425,34 +425,33 @@ def test_manual_reconcile_endpoint():
         ),
     ):
         from app.main import app
-        client = TestClient(app, raise_server_exceptions=False)
+        with TestClient(app, raise_server_exceptions=False) as client:
+            # First obtain a JWT
+            login_resp = client.post(
+                "/api/auth/login",
+                data={"username": settings.AUTH_USERNAME, "password": "admin"},
+            )
+            assert login_resp.status_code == 200
+            token = login_resp.json()["access_token"]
 
-        # First obtain a JWT
-        login_resp = client.post(
-            "/api/auth/login",
-            data={"username": settings.AUTH_USERNAME, "password": "admin"},
-        )
-        assert login_resp.status_code == 200
-        token = login_resp.json()["access_token"]
+            # Trigger manual reconcile
+            reconcile_resp = client.post(
+                "/api/reconcile",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert reconcile_resp.status_code == 200
+            body = reconcile_resp.json()
 
-        # Trigger manual reconcile
-        reconcile_resp = client.post(
-            "/api/reconcile",
-            headers={"Authorization": f"Bearer {token}"},
-        )
-        assert reconcile_resp.status_code == 200
-        body = reconcile_resp.json()
-
-        # Validate the response conforms to ReconcileReport
-        assert "report_id" in body
-        assert "timestamp" in body
-        assert "total_sent" in body
-        assert "total_received" in body
-        assert "total_missing" in body
-        assert "overall_loss_rate" in body
-        assert body["total_sent"] == 50
-        assert body["total_missing"] == 0
-        assert body["overall_loss_rate"] == pytest.approx(0.0)
+            # Validate the response conforms to ReconcileReport
+            assert "report_id" in body
+            assert "timestamp" in body
+            assert "total_sent" in body
+            assert "total_received" in body
+            assert "total_missing" in body
+            assert "overall_loss_rate" in body
+            assert body["total_sent"] == 50
+            assert body["total_missing"] == 0
+            assert body["overall_loss_rate"] == pytest.approx(0.0)
 
 
 # ---------------------------------------------------------------------------
