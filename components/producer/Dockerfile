@@ -55,7 +55,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/app/ ./app/
 
 # Compiled SPA — FastAPI StaticFiles serves this at "/"
-COPY --from=frontend-builder /app/frontend/dist ./static/
+COPY --from=frontend-builder /app/backend/static ./static/
 
 # PVC will be mounted at /data in Kubernetes; create it for local docker runs
 RUN mkdir -p /data && chown hamq:hamq /data

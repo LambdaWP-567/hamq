@@ -50,12 +50,7 @@ const ChaosControl: React.FC<Props> = ({ status, onRefresh }) => {
       dry_run: dryRun,
     }
     try {
-      await api.post('/api/v1/controller/chaos/configure', payload)
-      if (enabled) {
-        await api.post('/api/v1/controller/chaos/start', { interval_seconds: intervalSeconds, max_pods: maxPods })
-      } else {
-        await api.post('/api/v1/controller/chaos/stop', {})
-      }
+      await api.runChaos(payload)
       onRefresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed')
@@ -63,13 +58,14 @@ const ChaosControl: React.FC<Props> = ({ status, onRefresh }) => {
       setLoading(false)
       setConfirmStop(false)
     }
-  }, [api, action, targetNs, dryRun, intervalSeconds, maxPods, onRefresh])
+  }, [api, action, targetNs, dryRun, onRefresh])
 
   const runOnce = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      await api.post('/api/v1/controller/chaos/run-once', {
+      await api.runChaos({
+        enabled: true,
         action,
         target_namespace: targetNs,
         dry_run: dryRun,
