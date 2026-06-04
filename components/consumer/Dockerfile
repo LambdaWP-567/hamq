@@ -64,7 +64,7 @@ COPY backend/ ./
 
 # Copy the compiled React SPA from Stage 1 into the static directory that
 # FastAPI's StaticFiles middleware will serve.
-COPY --from=frontend-builder /app/frontend/dist ./static
+COPY --from=frontend-builder /app/backend/static ./static
 
 # Create the data directory for SQLite (the PVC will be mounted here).
 RUN mkdir -p /data && chown hamq:hamq /data
