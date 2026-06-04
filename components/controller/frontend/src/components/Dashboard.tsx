@@ -36,7 +36,7 @@ const TABS: TabDef[] = [
 const Dashboard: React.FC = () => {
   const { t } = useTranslation()
   const api = useApi()
-  const { lastMessage } = useWebSocket('/ws')
+  const { lastMessage } = useWebSocket()
 
   const [status, setStatus]   = useState<ControllerStatus | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('pods')
@@ -45,7 +45,7 @@ const Dashboard: React.FC = () => {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const data = await api.get<ControllerStatus>('/api/v1/controller/status')
+      const data = await api.getStatus()
       setStatus(data)
       setError(null)
     } catch (e) {
@@ -60,8 +60,8 @@ const Dashboard: React.FC = () => {
 
   // Update on WebSocket push
   useEffect(() => {
-    if (lastMessage?.type === 'status_update') {
-      setStatus(lastMessage.data as ControllerStatus)
+    if (lastMessage) {
+      setStatus(lastMessage)
     }
   }, [lastMessage])
 
@@ -161,8 +161,8 @@ const Dashboard: React.FC = () => {
 
           {/* ── Tab Content ───────────────────────────────────── */}
           <div className="p-4 sm:p-6">
-            {activeTab === 'pods'    && <PodControl     status={status} onRefresh={fetchStatus} />}
-            {activeTab === 'nodes'   && <NodeControl    status={status} onRefresh={fetchStatus} />}
+            {activeTab === 'pods'    && <PodControl     liveStatus={status} />}
+            {activeTab === 'nodes'   && <NodeControl    liveStatus={status} />}
             {activeTab === 'chaos'   && <ChaosControl   status={status} onRefresh={fetchStatus} />}
             {activeTab === 'network' && <NetworkControl status={status} onRefresh={fetchStatus} />}
           </div>

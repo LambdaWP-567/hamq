@@ -60,7 +60,7 @@ const NetworkControl: React.FC<Props> = ({ status, onRefresh }) => {
       return
     }
     try {
-      await api.post('/api/v1/controller/network/partition', {
+      await api.createNetworkPartition({
         name: policyName || `partition-${Date.now()}`,
         target_namespace: targetNs,
         pod_selector: selector,
@@ -78,7 +78,7 @@ const NetworkControl: React.FC<Props> = ({ status, onRefresh }) => {
     setDeleting(name)
     setError(null)
     try {
-      await api.delete(`/api/v1/controller/network/partition/${namespace}/${name}`)
+      await api.deleteNetworkPartition(name, namespace)
       onRefresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Delete failed')
