@@ -1,0 +1,23 @@
+{{- /*
+  HAMq Producer PersistentVolumeClaim
+  Stores the SQLite buffer database at /data/producer_buffer.db.
+  Created only when persistence.enabled is true.
+*/ -}}
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "hamq-producer.fullname" . }}-buffer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-producer.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- end }}

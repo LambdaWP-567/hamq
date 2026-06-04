@@ -1,0 +1,71 @@
+{
+  "nav": {
+    "title": "HAMq Konsument",
+    "dashboard": "Dashboard",
+    "messages": "Nachrichten",
+    "logout": "Abmelden"
+  },
+  "status": {
+    "running": "Empfang läuft",
+    "stopped": "Gestoppt",
+    "received": "Empfangene Nachrichten",
+    "lag": "Consumer Lag",
+    "checksum_errors": "Prüfsummenfehler",
+    "kafka_connected": "Kafka verbunden",
+    "kafka_disconnected": "Kafka getrennt",
+    "consumer_id": "Konsument-ID"
+  },
+  "controls": {
+    "start": "Empfang starten",
+    "stop": "Empfang stoppen",
+    "starting": "Wird gestartet…",
+    "stopping": "Wird gestoppt…"
+  },
+  "messages": {
+    "title": "Empfangene Nachrichten",
+    "sequence": "Sequenz",
+    "producer": "Produzent",
+    "received_at": "Empfangen um",
+    "checksum": "Prüfsumme",
+    "valid": "Gültig",
+    "invalid": "Ungültig",
+    "id": "ID",
+    "frequency": "Frequenz (Hz)",
+    "no_messages": "Keine Nachrichten gefunden",
+    "load_error": "Fehler beim Laden der Nachrichten"
+  },
+  "search": {
+    "producer_id": "Produzenten-ID",
+    "seq_from": "Sequenz von",
+    "seq_to": "Sequenz bis",
+    "submit": "Suchen",
+    "reset": "Zurücksetzen"
+  },
+  "chart": {
+    "receive_rate": "Empfangsrate (Nachrichten/s)",
+    "time": "Zeit",
+    "messages_per_second": "Nachrichten/s"
+  },
+  "pagination": {
+    "page": "Seite",
+    "of": "von",
+    "per_page": "pro Seite",
+    "previous": "Zurück",
+    "next": "Weiter"
+  },
+  "login": {
+    "title": "Anmelden",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "error": "Ungültige Anmeldedaten",
+    "loading": "Wird angemeldet…"
+  },
+  "common": {
+    "loading": "Lädt…",
+    "error": "Fehler",
+    "yes": "Ja",
+    "no": "Nein",
+    "unknown": "Unbekannt"
+  }
+}

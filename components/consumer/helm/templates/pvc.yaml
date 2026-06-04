@@ -1,0 +1,23 @@
+{{- /*
+  HAMq Consumer PersistentVolumeClaim
+  Stores the SQLite message database at /data/consumer_messages.db.
+  Created only when persistence.enabled is true.
+*/ -}}
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "hamq-consumer.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-consumer.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode | default "ReadWriteOnce" }}
+  {{- if .Values.persistence.storageClass }}
+  storageClassName: {{ .Values.persistence.storageClass }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size }}
+{{- end }}

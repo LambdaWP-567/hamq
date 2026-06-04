@@ -1,0 +1,46 @@
+{{- /*
+  HAMq Arbiter Services
+  Two services: one for the backend API (port 8002) and one for the frontend (port 3002).
+*/ -}}
+---
+# Backend service — exposes the FastAPI arbiter on port 8002
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-arbiter.fullname" . }}-backend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-arbiter.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  type: {{ .Values.service.backend.type }}
+  ports:
+    - port: {{ .Values.service.backend.port }}
+      targetPort: http-backend
+      protocol: TCP
+      name: http
+    - port: 9090
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    {{- include "hamq-arbiter.selectorLabels" . | nindent 4 }}
+---
+# Frontend service — exposes the Nginx React SPA on port 3002
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "hamq-arbiter.fullname" . }}-frontend
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-arbiter.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  type: {{ .Values.service.frontend.type }}
+  ports:
+    - port: {{ .Values.service.frontend.port }}
+      targetPort: http-frontend
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "hamq-arbiter.selectorLabels" . | nindent 4 }}

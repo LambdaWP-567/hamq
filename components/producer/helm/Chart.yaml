@@ -1,0 +1,13 @@
+apiVersion: v2
+name: hamq-producer
+description: HAMq resilient message producer with local buffer and web UI
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - kafka
+  - producer
+  - hamq
+home: https://github.com/lambdawp-567/hamq
+maintainers:
+  - name: HAMq Team

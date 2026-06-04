@@ -1,0 +1,313 @@
+{{/*
+kafka.yaml — Strimzi KRaft-mode Kafka cluster resources
+
+Resources created:
+  1. ConfigMap:     kafka-metrics         — JMX Prometheus Exporter configuration
+  2. KafkaNodePool: dual-role             — combined controller+broker node pool
+  3. Kafka:         {{ .Values.kafka.name }} — main Kafka cluster CR
+*/}}
+
+# =============================================================================
+# 1. JMX Prometheus Exporter configuration ConfigMap
+#    Referenced by the Kafka CR's metricsConfig section.
+# =============================================================================
+{{- if .Values.kafka.metrics.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kafka-metrics
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.kafka.name }}
+    app.kubernetes.io/component: kafka
+    app.kubernetes.io/managed-by: Helm
+data:
+  kafka-metrics-config.yml: |
+    # Kafka JMX → Prometheus metric mapping
+    # This config is consumed by the JMX Prometheus Java Agent embedded in Strimzi.
+    lowercaseOutputName: true
+    lowercaseOutputLabelNames: true
+    rules:
+      # -----------------------------------------------------------------------
+      # Broker-level throughput metrics
+      # -----------------------------------------------------------------------
+      - pattern: kafka.server<type=BrokerTopicMetrics, name=(BytesInPerSec|BytesOutPerSec|MessagesInPerSec|BytesRejectedPerSec), topic=(.+)><>Count
+        name: kafka_server_brokertopicmetrics_$1_total
+        labels:
+          topic: "$2"
+        type: COUNTER
+
+      - pattern: kafka.server<type=BrokerTopicMetrics, name=(BytesInPerSec|BytesOutPerSec|MessagesInPerSec)><>Count
+        name: kafka_server_brokertopicmetrics_$1_total
+        type: COUNTER
+
+      # -----------------------------------------------------------------------
+      # Replica manager — under-replicated and offline partitions
+      # Alert if these are > 0 for more than 60 seconds.
+      # -----------------------------------------------------------------------
+      - pattern: kafka.server<type=ReplicaManager, name=(.+)><>Value
+        name: kafka_server_replicamanager_$1
+        type: GAUGE
+
+      # -----------------------------------------------------------------------
+      # Controller metrics — activeControllerCount MUST equal 1 at all times
+      # -----------------------------------------------------------------------
+      - pattern: kafka.controller<type=KafkaController, name=(.+)><>Value
+        name: kafka_controller_kafkacontroller_$1
+        type: GAUGE
+
+      # -----------------------------------------------------------------------
+      # Log metrics — size, offsets
+      # -----------------------------------------------------------------------
+      - pattern: kafka.log<type=Log, name=(Size|NumLogSegments), topic=(.+), partition=(.+)><>Value
+        name: kafka_log_log_$1
+        labels:
+          topic: "$2"
+          partition: "$3"
+        type: GAUGE
+
+      - pattern: kafka.log<type=Log, name=(LogStartOffset|LogEndOffset), topic=(.+), partition=(.+)><>Value
+        name: kafka_log_log_$1
+        labels:
+          topic: "$2"
+          partition: "$3"
+        type: GAUGE
+
+      # -----------------------------------------------------------------------
+      # Network request metrics — latency percentiles
+      # -----------------------------------------------------------------------
+      - pattern: kafka.network<type=RequestMetrics, name=(TotalTimeMs), request=(.+)><>(50|75|95|99|99\.9)thPercentile
+        name: kafka_network_requestmetrics_totaltimems
+        labels:
+          request: "$2"
+          quantile: "0.$3"
+        type: GAUGE
+
+      - pattern: kafka.network<type=RequestMetrics, name=RequestsPerSec, request=(.+), version=(.+)><>Count
+        name: kafka_network_requestmetrics_requestspersec_total
+        labels:
+          request: "$1"
+          version: "$2"
+        type: COUNTER
+
+      # -----------------------------------------------------------------------
+      # Consumer group coordinator metrics
+      # -----------------------------------------------------------------------
+      - pattern: kafka.coordinator.group<type=GroupMetadataManager, name=(.+)><>Value
+        name: kafka_coordinator_group_$1
+        type: GAUGE
+
+      # -----------------------------------------------------------------------
+      # JVM GC metrics — useful for detecting GC pauses
+      # -----------------------------------------------------------------------
+      - pattern: java.lang<type=GarbageCollector, name=(.+)><>CollectionCount
+        name: jvm_gc_collection_count_total
+        labels:
+          gc: "$1"
+        type: COUNTER
+
+      - pattern: java.lang<type=GarbageCollector, name=(.+)><>CollectionTime
+        name: jvm_gc_collection_time_ms_total
+        labels:
+          gc: "$1"
+        type: COUNTER
+
+      # -----------------------------------------------------------------------
+      # JVM memory
+      # -----------------------------------------------------------------------
+      - pattern: java.lang<type=Memory><>HeapMemoryUsage.used
+        name: jvm_memory_heap_used_bytes
+        type: GAUGE
+
+      - pattern: java.lang<type=Memory><>HeapMemoryUsage.max
+        name: jvm_memory_heap_max_bytes
+        type: GAUGE
+
+      # -----------------------------------------------------------------------
+      # Purgatory — delayed produce/fetch requests
+      # -----------------------------------------------------------------------
+      - pattern: kafka.server<type=DelayedOperationPurgatory, name=PurgatorySize, delayedOperation=(.+)><>Value
+        name: kafka_server_delayedoperationpurgatory_purgatorysize
+        labels:
+          operation: "$1"
+        type: GAUGE
+
+      # -----------------------------------------------------------------------
+      # ISR shrink/expand events — useful for detecting replication instability
+      # -----------------------------------------------------------------------
+      - pattern: kafka.server<type=ReplicaManager, name=(IsrShrinksPerSec|IsrExpandsPerSec)><>Count
+        name: kafka_server_replicamanager_$1_total
+        type: COUNTER
+{{- end }}
+
+---
+# =============================================================================
+# 2. KafkaNodePool — dual-role controller+broker pool (KRaft mode)
+#    Each node in this pool acts as both a KRaft Raft controller and a Kafka broker.
+#    This is the recommended topology for clusters with 3–9 nodes.
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaNodePool
+metadata:
+  name: dual-role
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    # This label links the pool to the Kafka CR below
+    strimzi.io/cluster: {{ .Values.kafka.name }}
+    app.kubernetes.io/name: {{ .Values.kafka.name }}
+    app.kubernetes.io/component: kafka-node-pool
+    app.kubernetes.io/managed-by: Helm
+spec:
+  # Number of pods in this pool = total broker+controller node count
+  replicas: {{ .Values.kafka.replicas }}
+
+  # Both roles on every node: simplified topology, fewer resources than dedicated pools
+  roles:
+    - controller
+    - broker
+
+  # ---------------------------------------------------------------------------
+  # Storage — one PVC per pod
+  # ---------------------------------------------------------------------------
+  storage:
+    type: {{ .Values.kafka.storage.type }}
+    size: {{ .Values.kafka.storage.size }}
+    class: {{ .Values.kafka.storage.storageClass }}
+    # deleteClaim: false prevents PVC deletion when the KafkaNodePool is deleted.
+    # IMPORTANT: keep false in production.
+    deleteClaim: {{ .Values.kafka.storage.deleteClaim }}
+
+  # ---------------------------------------------------------------------------
+  # Resource requests and limits
+  # ---------------------------------------------------------------------------
+  resources:
+    requests:
+      memory: {{ .Values.kafka.resources.requests.memory }}
+      cpu: {{ .Values.kafka.resources.requests.cpu | quote }}
+    limits:
+      memory: {{ .Values.kafka.resources.limits.memory }}
+      cpu: {{ .Values.kafka.resources.limits.cpu | quote }}
+
+  # ---------------------------------------------------------------------------
+  # JVM options — heap sizing for the broker JVM
+  # ---------------------------------------------------------------------------
+  jvmOptions:
+    -Xmx: {{ .Values.kafka.jvmOptions.xmx | quote }}
+    -Xms: {{ .Values.kafka.jvmOptions.xms | quote }}
+
+---
+# =============================================================================
+# 3. Kafka CR — main cluster definition
+#    Annotations enable KRaft mode and node pool management.
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: {{ .Values.kafka.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.kafka.name }}
+    app.kubernetes.io/component: kafka
+    app.kubernetes.io/managed-by: Helm
+  annotations:
+    # These two annotations activate KRaft mode and delegate node management
+    # to KafkaNodePool resources (Strimzi 0.40+).
+    strimzi.io/node-pools: enabled
+    strimzi.io/kraft: enabled
+spec:
+  kafka:
+    # Kafka server version — must match .Values.kafka.version in KafkaNodePool
+    version: {{ .Values.kafka.version }}
+
+    # In KRaft mode with node pools, replicas are managed by KafkaNodePool.
+    # This field must be omitted or set to null when node pools are enabled.
+    # replicas is intentionally not set here.
+
+    # -------------------------------------------------------------------------
+    # Listeners
+    # -------------------------------------------------------------------------
+    listeners:
+      {{- if .Values.kafka.listeners.plain.enabled }}
+      # Plain (no TLS) listener — in-cluster tooling / development use only
+      - name: plain
+        port: {{ .Values.kafka.listeners.plain.port }}
+        type: internal
+        tls: false
+      {{- end }}
+
+      {{- if .Values.kafka.listeners.tls.enabled }}
+      # In-cluster TLS listener with mutual TLS client authentication.
+      # Application pods inside Cluster A use this listener.
+      - name: tls
+        port: {{ .Values.kafka.listeners.tls.port }}
+        type: internal
+        tls: true
+        authentication:
+          type: {{ .Values.kafka.listeners.tls.authentication.type }}
+      {{- end }}
+
+      {{- if .Values.kafka.listeners.external.enabled }}
+      # External listener — exposes Kafka outside Cluster A via a LoadBalancer.
+      # Producer and Consumer components in other clusters connect here.
+      - name: external
+        port: {{ .Values.kafka.listeners.external.port }}
+        type: {{ .Values.kafka.listeners.external.type }}
+        tls: {{ .Values.kafka.listeners.external.tls }}
+        authentication:
+          # External clients also authenticate via TLS client certificates
+          type: tls
+      {{- end }}
+
+    # -------------------------------------------------------------------------
+    # Broker configuration
+    # Values map directly to Kafka broker configuration keys.
+    # -------------------------------------------------------------------------
+    config:
+      # Default RF for topics without an explicit replication.factor.
+      # Must be <= number of brokers.
+      default.replication.factor: {{ .Values.kafka.config.defaultReplicationFactor }}
+
+      # Minimum ISR for broker-level enforcement of acks=all durability.
+      # A producer configured with acks=all will fail if ISR < this value.
+      min.insync.replicas: {{ .Values.kafka.config.minInsyncReplicas }}
+
+      # Internal topic replication factors — set equal to broker count for HA.
+      offsets.topic.replication.factor: {{ .Values.kafka.config.offsetsTopicReplicationFactor }}
+      transaction.state.log.replication.factor: {{ .Values.kafka.config.transactionStateLogReplicationFactor }}
+      transaction.state.log.min.isr: {{ .Values.kafka.config.transactionStateLogMinIsr }}
+
+      # Log retention
+      log.retention.hours: {{ .Values.kafka.config.logRetentionHours }}
+      log.segment.bytes: {{ .Values.kafka.config.logSegmentBytes }}
+
+      # Disable implicit topic creation — all topics must be declared via KafkaTopic resources.
+      auto.create.topics.enable: {{ .Values.kafka.config.autoCreateTopicsEnable }}
+
+      # Inter-broker protocol version — must match kafka.version major.minor
+      inter.broker.protocol.version: "3.8"
+
+    # -------------------------------------------------------------------------
+    # Prometheus JMX metrics exporter
+    # -------------------------------------------------------------------------
+    {{- if .Values.kafka.metrics.enabled }}
+    metricsConfig:
+      # jmxPrometheusExporter: Strimzi injects the JMX agent and uses this ConfigMap
+      type: jmxPrometheusExporter
+      valueFrom:
+        configMapKeyRef:
+          name: kafka-metrics
+          key: kafka-metrics-config.yml
+    {{- end }}
+
+  # ---------------------------------------------------------------------------
+  # Entity Operator — manages KafkaTopic and KafkaUser resources
+  # The topic operator watches KafkaTopic CRs and reconciles them with Kafka.
+  # The user operator watches KafkaUser CRs and manages ACLs + client certs.
+  # ---------------------------------------------------------------------------
+  entityOperator:
+    {{- if .Values.kafka.entityOperator.topicOperator.enabled }}
+    topicOperator: {}
+    {{- end }}
+    {{- if .Values.kafka.entityOperator.userOperator.enabled }}
+    userOperator: {}
+    {{- end }}

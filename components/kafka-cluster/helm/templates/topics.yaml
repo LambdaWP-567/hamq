@@ -1,0 +1,77 @@
+{{/*
+topics.yaml — KafkaTopic custom resources
+
+Creates the following topics via the Strimzi Topic Operator:
+  - {{ .Values.topics.messages.name }}  (primary message topic)
+  - {{ .Values.topics.dlq.name }}       (dead-letter queue)
+
+The Topic Operator must be enabled (kafka.entityOperator.topicOperator.enabled: true).
+*/}}
+
+# =============================================================================
+# Primary message topic
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: {{ .Values.topics.messages.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    # This label tells the Topic Operator which Kafka cluster to manage this topic in
+    strimzi.io/cluster: {{ .Values.kafka.name }}
+    app.kubernetes.io/name: {{ .Values.topics.messages.name }}
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/managed-by: Helm
+spec:
+  # Number of partitions determines the maximum parallelism for producers and consumers.
+  # 12 partitions allows up to 12 consumers in the same consumer group to work in parallel.
+  partitions: {{ .Values.topics.messages.partitions }}
+
+  # Replication factor — must be <= number of Kafka broker nodes.
+  # RF=3 means every partition has 3 copies across 3 different brokers.
+  replicas: {{ .Values.topics.messages.replicas }}
+
+  config:
+    # How long to retain messages (in milliseconds).
+    # 604800000 ms = 7 days.
+    retention.ms: {{ .Values.topics.messages.config.retentionMs | quote }}
+
+    # Topic-level minimum in-sync replicas.
+    # A producer with acks=all will fail if ISR drops below this value for this topic.
+    min.insync.replicas: {{ .Values.topics.messages.config.minInsyncReplicas | quote }}
+
+    # Cleanup policy: "delete" removes old segments by time/size.
+    # Use "compact" only for topics where you want to retain the latest value per key.
+    cleanup.policy: {{ .Values.topics.messages.config.cleanupPolicy | quote }}
+
+---
+# =============================================================================
+# Dead-letter queue (DLQ)
+# Messages that cannot be processed after maximum retries are sent here.
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: {{ .Values.topics.dlq.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    strimzi.io/cluster: {{ .Values.kafka.name }}
+    app.kubernetes.io/name: {{ .Values.topics.dlq.name }}
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/managed-by: Helm
+spec:
+  # Fewer partitions for the DLQ — lower volume expected
+  partitions: {{ .Values.topics.dlq.partitions }}
+
+  # Same replication factor as the main topic for durability
+  replicas: {{ .Values.topics.dlq.replicas }}
+
+  config:
+    # DLQ messages are retained longer for forensic analysis.
+    # Default: 30 days = 2592000000 ms
+    retention.ms: "2592000000"
+
+    # Keep the same min.insync.replicas as the primary topic
+    min.insync.replicas: {{ .Values.kafka.config.minInsyncReplicas | quote }}
+
+    cleanup.policy: "delete"

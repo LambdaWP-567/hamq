@@ -1,0 +1,64 @@
+{{- /*
+  servicemonitor.yaml — Prometheus ServiceMonitor for Kafka metrics.
+  Conditional on monitoring.serviceMonitor.enabled.
+  Strimzi exposes metrics via a JMX-Prometheus exporter sidecar on each broker pod.
+*/ -}}
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.kafka.name }}-kafka-metrics
+  # Deploy into the monitoring namespace so Prometheus can discover it
+  namespace: {{ .Values.monitoring.serviceMonitor.namespace | default "monitoring" }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.kafka.name }}
+    app.kubernetes.io/component: kafka
+    app.kubernetes.io/managed-by: Helm
+    # Match the label selector used by your Prometheus instance
+    release: prometheus
+spec:
+  # Discover services in the Kafka namespace
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespace }}
+  selector:
+    matchLabels:
+      # Strimzi labels Kafka services with strimzi.io/cluster
+      strimzi.io/cluster: {{ .Values.kafka.name }}
+      strimzi.io/kind: Kafka
+  endpoints:
+    # Strimzi exposes JMX metrics on port 9404 of each broker pod
+    - port: tcp-prometheus
+      interval: {{ .Values.monitoring.serviceMonitor.interval | default "30s" }}
+      path: /metrics
+      scheme: http
+      # Scrape timeout must be less than the interval
+      scrapeTimeout: 10s
+---
+{{- /* KafkaExporter ServiceMonitor for consumer group lag metrics */}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.kafka.name }}-kafka-exporter
+  namespace: {{ .Values.monitoring.serviceMonitor.namespace | default "monitoring" }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.kafka.name }}-exporter
+    app.kubernetes.io/component: kafka-exporter
+    app.kubernetes.io/managed-by: Helm
+    release: prometheus
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Values.global.namespace }}
+  selector:
+    matchLabels:
+      # Strimzi KafkaExporter service label
+      strimzi.io/cluster: {{ .Values.kafka.name }}
+      strimzi.io/kind: KafkaExporter
+  endpoints:
+    - port: tcp-prometheus
+      interval: {{ .Values.monitoring.serviceMonitor.interval | default "30s" }}
+      path: /metrics
+      scheme: http
+      scrapeTimeout: 10s
+{{- end }}

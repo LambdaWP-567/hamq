@@ -1,0 +1,57 @@
+{{- /*
+  configmap.yaml — Non-sensitive environment variables for the HAMq Controller.
+
+  Sensitive values (AUTH_PASSWORD_HASH, AUTH_SECRET_KEY) are stored in a
+  Kubernetes Secret referenced by auth.secretName and are NOT stored here.
+
+  All values come from values.yaml — no hardcoding.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hamq-controller.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-controller.labels" . | nindent 4 }}
+data:
+  # ── Controller identity ─────────────────────────────────────────────────
+  CONTROLLER_ID: {{ .Values.controller.controllerId | default "controller-1" | quote }}
+
+  # ── Kubernetes targeting ────────────────────────────────────────────────
+  # The namespace where the Strimzi Kafka cluster lives
+  KAFKA_NAMESPACE: {{ .Values.controller.kafkaNamespace | quote }}
+  # The Strimzi Kafka CR name (metadata.name)
+  KAFKA_CLUSTER_NAME: {{ .Values.controller.kafkaClusterName | quote }}
+  # Comma-separated list of namespaces the controller may operate in
+  TARGET_NAMESPACES: {{ .Values.controller.targetNamespaces | quote }}
+  # Whether to use the in-cluster service-account token (true in K8s pods)
+  K8S_IN_CLUSTER: {{ .Values.controller.inCluster | default true | quote }}
+
+  # ── Chaos engine ───────────────────────────────────────────────────────
+  CHAOS_ENABLED: {{ .Values.chaos.enabled | quote }}
+  # Action performed each chaos round
+  CHAOS_ACTION: {{ .Values.chaos.action | default "random_pod_delete" | quote }}
+  # Seconds between chaos rounds
+  CHAOS_INTERVAL_SECONDS: {{ .Values.chaos.intervalSeconds | quote }}
+  # Maximum pods to affect per round
+  CHAOS_MAX_PODS_PER_ROUND: {{ .Values.chaos.maxPodsPerRound | quote }}
+  # dry_run=true logs intent without making actual changes
+  CHAOS_DRY_RUN: {{ .Values.chaos.dryRun | default false | quote }}
+  # Automatically start chaos loop on startup
+  CHAOS_AUTOSTART: {{ .Values.chaos.autostart | default false | quote }}
+
+  # ── Persistence ─────────────────────────────────────────────────────────
+  EVENT_DB_PATH: {{ printf "%s/%s" .Values.persistence.mountPath .Values.persistence.dbFilename | quote }}
+
+  # ── Authentication (non-sensitive part) ────────────────────────────────
+  AUTH_USERNAME: {{ .Values.auth.username | default "admin" | quote }}
+  AUTH_TOKEN_EXPIRE_MINUTES: {{ .Values.auth.tokenExpireMinutes | default 1440 | quote }}
+
+  # ── API server ──────────────────────────────────────────────────────────
+  API_HOST: "0.0.0.0"
+  API_PORT: {{ .Values.service.backend.port | default 8003 | quote }}
+  # Allow all origins for the embedded SPA; restrict in production via Ingress
+  CORS_ORIGINS: "*"
+
+  # ── Frontend API URL (injected at runtime into nginx env-subst) ─────────
+  VITE_API_URL: ""

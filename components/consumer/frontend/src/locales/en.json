@@ -1,0 +1,71 @@
+{
+  "nav": {
+    "title": "HAMq Consumer",
+    "dashboard": "Dashboard",
+    "messages": "Messages",
+    "logout": "Logout"
+  },
+  "status": {
+    "running": "Receiving",
+    "stopped": "Stopped",
+    "received": "Received Messages",
+    "lag": "Consumer Lag",
+    "checksum_errors": "Checksum Errors",
+    "kafka_connected": "Kafka Connected",
+    "kafka_disconnected": "Kafka Disconnected",
+    "consumer_id": "Consumer ID"
+  },
+  "controls": {
+    "start": "Start Consuming",
+    "stop": "Stop Consuming",
+    "starting": "Starting…",
+    "stopping": "Stopping…"
+  },
+  "messages": {
+    "title": "Received Messages",
+    "sequence": "Sequence",
+    "producer": "Producer",
+    "received_at": "Received At",
+    "checksum": "Checksum",
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "id": "ID",
+    "frequency": "Frequency (Hz)",
+    "no_messages": "No messages found",
+    "load_error": "Error loading messages"
+  },
+  "search": {
+    "producer_id": "Producer ID",
+    "seq_from": "Sequence From",
+    "seq_to": "Sequence To",
+    "submit": "Search",
+    "reset": "Reset"
+  },
+  "chart": {
+    "receive_rate": "Receive Rate (msg/s)",
+    "time": "Time",
+    "messages_per_second": "Messages/s"
+  },
+  "pagination": {
+    "page": "Page",
+    "of": "of",
+    "per_page": "per page",
+    "previous": "Previous",
+    "next": "Next"
+  },
+  "login": {
+    "title": "Login",
+    "username": "Username",
+    "password": "Password",
+    "submit": "Login",
+    "error": "Invalid credentials",
+    "loading": "Logging in…"
+  },
+  "common": {
+    "loading": "Loading…",
+    "error": "Error",
+    "yes": "Yes",
+    "no": "No",
+    "unknown": "Unknown"
+  }
+}

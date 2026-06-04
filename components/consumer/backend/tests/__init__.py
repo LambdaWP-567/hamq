@@ -1,0 +1,1 @@
+# HAMq Consumer tests package

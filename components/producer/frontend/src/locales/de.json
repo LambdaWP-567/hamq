@@ -1,0 +1,49 @@
+{
+  "nav": {
+    "title": "HAMq Producer",
+    "logout": "Abmelden"
+  },
+  "status": {
+    "running": "Läuft",
+    "stopped": "Gestoppt",
+    "connected": "Verbunden",
+    "disconnected": "Getrennt",
+    "buffered": "Gepufferte Nachrichten",
+    "sent": "Gesendete Nachrichten",
+    "errors": "Fehler",
+    "sequence": "Letzte Sequenz",
+    "frequency": "Aktuelle Frequenz"
+  },
+  "controls": {
+    "start": "Starten",
+    "stop": "Stoppen",
+    "frequency": "Frequenz (msg/s)",
+    "apply": "Übernehmen",
+    "frequencyHint": "Gültige Werte: 1 – 1000 msg/s"
+  },
+  "login": {
+    "title": "Anmelden",
+    "subtitle": "HAMq Producer Steuerung",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "submit": "Anmelden",
+    "error": "Ungültige Anmeldedaten"
+  },
+  "chart": {
+    "title": "Nachrichtenrate",
+    "sent": "Gesendet",
+    "buffered": "Gepuffert"
+  },
+  "messages": {
+    "recent": "Letzte Nachrichten",
+    "id": "ID",
+    "sequence": "Sequenz",
+    "timestamp": "Zeitstempel",
+    "frequency": "Frequenz",
+    "noMessages": "Noch keine Nachrichten"
+  },
+  "lang": {
+    "de": "Deutsch",
+    "en": "English"
+  }
+}

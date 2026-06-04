@@ -1,0 +1,33 @@
+name: Build All Components
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-producer:
+    uses: ./.github/workflows/build-producer.yml
+
+  build-consumer:
+    uses: ./.github/workflows/build-consumer.yml
+
+  build-arbiter:
+    uses: ./.github/workflows/build-arbiter.yml
+
+  build-controller:
+    uses: ./.github/workflows/build-controller.yml
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: 'v3.15.0'
+      - name: Lint all Helm charts
+        run: |
+          for chart in components/*/helm; do
+            echo "Linting $chart..."
+            helm lint "$chart"
+          done

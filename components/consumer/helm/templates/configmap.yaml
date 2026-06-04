@@ -1,0 +1,54 @@
+{{- /*
+  HAMq Consumer ConfigMap
+  Contains all non-secret environment variables consumed by the backend and frontend.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hamq-consumer.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-consumer.labels" . | nindent 4 }}
+data:
+  # -------------------------------------------------------------------------
+  # Kafka connection
+  # -------------------------------------------------------------------------
+  KAFKA_BOOTSTRAP_SERVERS: {{ .Values.kafka.bootstrapServers | quote }}
+  KAFKA_TOPIC: {{ .Values.kafka.topic | quote }}
+  KAFKA_TLS_ENABLED: {{ .Values.kafka.tlsEnabled | quote }}
+  KAFKA_GROUP_ID: {{ .Values.kafka.groupId | quote }}
+  KAFKA_AUTO_OFFSET_RESET: {{ .Values.kafka.autoOffsetReset | quote }}
+  KAFKA_CA_CERT_PATH: "/certs/ca/ca.crt"
+  KAFKA_USER_CERT_PATH: "/certs/user/user.crt"
+  KAFKA_USER_KEY_PATH: "/certs/user/user.key"
+
+  # -------------------------------------------------------------------------
+  # Consumer behaviour
+  # -------------------------------------------------------------------------
+  CONSUMER_AUTOSTART: {{ .Values.consumer.autostart | quote }}
+
+  # -------------------------------------------------------------------------
+  # Message storage
+  # -------------------------------------------------------------------------
+  DB_PATH: "/data/consumer_messages.db"
+
+  # -------------------------------------------------------------------------
+  # Auth
+  # -------------------------------------------------------------------------
+  TOKEN_EXPIRE_MINUTES: {{ .Values.auth.tokenExpireMinutes | quote }}
+
+  # -------------------------------------------------------------------------
+  # Service ports
+  # -------------------------------------------------------------------------
+  BACKEND_PORT: {{ .Values.service.backend.port | quote }}
+  FRONTEND_PORT: {{ .Values.service.frontend.port | quote }}
+
+  # -------------------------------------------------------------------------
+  # CORS — the frontend origin is allowed to call the backend
+  # -------------------------------------------------------------------------
+  CORS_ORIGINS: {{ printf "http://localhost:%d,http://%s-frontend.%s.svc.cluster.local:%d" (.Values.service.frontend.port | int) (include "hamq-consumer.fullname" .) .Release.Namespace (.Values.service.frontend.port | int) | quote }}
+
+  # -------------------------------------------------------------------------
+  # Frontend: API URL for Vite (proxied or direct)
+  # -------------------------------------------------------------------------
+  VITE_API_URL: {{ printf "http://%s-backend.%s.svc.cluster.local:%d" (include "hamq-consumer.fullname" .) .Release.Namespace (.Values.service.backend.port | int) | quote }}

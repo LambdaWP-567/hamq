@@ -1,0 +1,57 @@
+{{- /*
+  HAMq Producer ConfigMap
+  Contains all non-secret environment variables consumed by the backend and frontend.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "hamq-producer.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hamq-producer.labels" . | nindent 4 }}
+data:
+  # -------------------------------------------------------------------------
+  # Kafka connection
+  # -------------------------------------------------------------------------
+  KAFKA_BOOTSTRAP_SERVERS: {{ .Values.kafka.bootstrapServers | quote }}
+  KAFKA_TOPIC: {{ .Values.kafka.topic | quote }}
+  KAFKA_TLS_ENABLED: {{ .Values.kafka.tlsEnabled | quote }}
+  KAFKA_CA_CERT_PATH: "/certs/ca/ca.crt"
+  KAFKA_USER_CERT_PATH: "/certs/user/user.crt"
+  KAFKA_USER_KEY_PATH: "/certs/user/user.key"
+
+  # -------------------------------------------------------------------------
+  # Producer behaviour
+  # -------------------------------------------------------------------------
+  PRODUCER_DEFAULT_FREQUENCY_HZ: {{ .Values.producer.frequencyHz | quote }}
+  PRODUCER_AUTOSTART: {{ .Values.producer.autostart | quote }}
+  PRODUCER_MAX_FREQUENCY_HZ: {{ .Values.producer.maxFrequencyHz | quote }}
+
+  # -------------------------------------------------------------------------
+  # Buffer settings
+  # -------------------------------------------------------------------------
+  BUFFER_DB_PATH: {{ .Values.buffer.dbPath | quote }}
+  BUFFER_MAX_SIZE: {{ .Values.buffer.maxSize | quote }}
+  BUFFER_FLUSH_INTERVAL_S: {{ .Values.buffer.flushIntervalS | quote }}
+  BUFFER_RETRY_INTERVAL_S: {{ .Values.buffer.retryIntervalS | quote }}
+
+  # -------------------------------------------------------------------------
+  # Auth
+  # -------------------------------------------------------------------------
+  TOKEN_EXPIRE_MINUTES: {{ .Values.auth.tokenExpireMinutes | quote }}
+
+  # -------------------------------------------------------------------------
+  # Service ports
+  # -------------------------------------------------------------------------
+  BACKEND_PORT: {{ .Values.service.backend.port | quote }}
+  FRONTEND_PORT: {{ .Values.service.frontend.port | quote }}
+
+  # -------------------------------------------------------------------------
+  # CORS — the frontend origin is allowed to call the backend
+  # -------------------------------------------------------------------------
+  CORS_ORIGINS: {{ printf "http://localhost:%d,http://%s-frontend.%s.svc.cluster.local:%d" (.Values.service.frontend.port | int) (include "hamq-producer.fullname" .) .Release.Namespace (.Values.service.frontend.port | int) | quote }}
+
+  # -------------------------------------------------------------------------
+  # Frontend: API URL for Vite (proxied or direct)
+  # -------------------------------------------------------------------------
+  VITE_API_URL: {{ printf "http://%s-backend.%s.svc.cluster.local:%d" (include "hamq-producer.fullname" .) .Release.Namespace (.Values.service.backend.port | int) | quote }}

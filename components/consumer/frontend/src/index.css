@@ -1,0 +1,21 @@
+/* HAMq Consumer — global styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Smooth scrolling everywhere */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar (webkit) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-brand-400 rounded;
+}

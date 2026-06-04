@@ -1,0 +1,268 @@
+# =============================================================================
+# HAMq — docker-compose for local development and testing
+#
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose up producer    # Start only the producer (+ dependencies)
+#   docker-compose logs -f        # Tail all logs
+#   docker-compose down -v        # Stop and remove volumes
+#
+# The Kafka broker is started in KRaft mode (no Zookeeper) using the
+# Bitnami image, which closely matches the production Strimzi config.
+# TLS is disabled for local dev — set KAFKA_TLS_ENABLED=true to enable.
+#
+# Default credentials: admin / admin
+# =============================================================================
+
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Shared environment for all application containers
+# ---------------------------------------------------------------------------
+x-common-env: &common-env
+  AUTH_USERNAME: "${AUTH_USERNAME:-admin}"
+  AUTH_PASSWORD_HASH: "${AUTH_PASSWORD_HASH:-$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry}"
+  AUTH_SECRET_KEY: "${AUTH_SECRET_KEY:-dev-secret-key-change-in-production!}"
+  AUTH_TOKEN_EXPIRE_MINUTES: "${AUTH_TOKEN_EXPIRE_MINUTES:-1440}"
+  KAFKA_TLS_ENABLED: "false"
+  CORS_ORIGINS: "*"
+
+services:
+  # ── Kafka (KRaft, single broker for local dev) ───────────────────────────
+  kafka:
+    image: "bitnami/kafka:3.8"
+    container_name: hamq-kafka
+    hostname: kafka
+    ports:
+      # Expose on localhost so host tools (kafka-console-producer etc.) can connect
+      - "${KAFKA_HOST_PORT:-9092}:9092"
+    environment:
+      # KRaft mode — no Zookeeper needed
+      KAFKA_CFG_NODE_ID: "1"
+      KAFKA_CFG_PROCESS_ROLES: "broker,controller"
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_CFG_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_CFG_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: "1"    # 1 in dev; 3 in production
+      KAFKA_CFG_MIN_INSYNC_REPLICAS: "1"           # 1 in dev; 2 in production
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - kafka-data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - hamq-net
+
+  # ── Kafka topic initialisation (runs once, then exits) ────────────────────
+  kafka-init:
+    image: "bitnami/kafka:3.8"
+    container_name: hamq-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: >
+      bash -c "
+        kafka-topics.sh --bootstrap-server kafka:9092
+          --create --if-not-exists
+          --topic hamq-messages
+          --partitions 3
+          --replication-factor 1 &&
+        kafka-topics.sh --bootstrap-server kafka:9092
+          --create --if-not-exists
+          --topic hamq-dlq
+          --partitions 1
+          --replication-factor 1 &&
+        echo 'Topics created successfully'
+      "
+    networks:
+      - hamq-net
+
+  # ── Producer ─────────────────────────────────────────────────────────────
+  producer:
+    build:
+      context: components/producer
+      args:
+        VITE_API_BASE_URL: ""
+    image: "hamq-producer:local"
+    container_name: hamq-producer
+    ports:
+      - "${PRODUCER_HOST_PORT:-8000}:8000"
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: "${KAFKA_TOPIC:-hamq-messages}"
+      PRODUCER_ID: "${PRODUCER_ID:-producer-1}"
+      PRODUCER_FREQUENCY_HZ: "${PRODUCER_FREQUENCY_HZ:-1.0}"
+      PRODUCER_AUTOSTART: "${PRODUCER_AUTOSTART:-false}"
+      BUFFER_DB_PATH: "/data/producer_buffer.db"
+      BUFFER_MAX_SIZE: "${BUFFER_MAX_SIZE:-100000}"
+      API_PORT: "8000"
+    volumes:
+      - producer-data:/data
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - hamq-net
+
+  # ── Consumer ─────────────────────────────────────────────────────────────
+  consumer:
+    build:
+      context: components/consumer
+      args:
+        VITE_API_BASE_URL: ""
+    image: "hamq-consumer:local"
+    container_name: hamq-consumer
+    ports:
+      - "${CONSUMER_HOST_PORT:-8001}:8001"
+    environment:
+      <<: *common-env
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC: "${KAFKA_TOPIC:-hamq-messages}"
+      CONSUMER_GROUP_ID: "${CONSUMER_GROUP_ID:-hamq-consumer-group}"
+      STORAGE_DB_PATH: "/data/consumer.db"
+      API_PORT: "8001"
+    volumes:
+      - consumer-data:/data
+    depends_on:
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - hamq-net
+
+  # ── Arbiter ───────────────────────────────────────────────────────────────
+  arbiter:
+    build:
+      context: components/arbiter
+      args:
+        VITE_API_BASE_URL: ""
+    image: "hamq-arbiter:local"
+    container_name: hamq-arbiter
+    ports:
+      - "${ARBITER_HOST_PORT:-8002}:8002"
+    environment:
+      <<: *common-env
+      PRODUCER_API_URLS: "http://producer:8000"
+      CONSUMER_API_URL: "http://consumer:8001"
+      RECONCILE_INTERVAL_S: "${RECONCILE_INTERVAL_S:-10}"
+      LOOKBACK_SECONDS: "${LOOKBACK_SECONDS:-300}"
+      RECONCILE_AUTOSTART: "${RECONCILE_AUTOSTART:-true}"
+      AUDIT_DB_PATH: "/data/arbiter.db"
+      API_PORT: "8002"
+    volumes:
+      - arbiter-data:/data
+    depends_on:
+      producer:
+        condition: service_healthy
+      consumer:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - hamq-net
+
+  # ── Controller ────────────────────────────────────────────────────────────
+  controller:
+    build:
+      context: components/controller
+      args:
+        VITE_API_BASE_URL: ""
+    image: "hamq-controller:local"
+    container_name: hamq-controller
+    ports:
+      - "${CONTROLLER_HOST_PORT:-8003}:8003"
+    environment:
+      <<: *common-env
+      # In local docker-compose mode, K8s operations are mocked
+      K8S_IN_CLUSTER: "false"
+      KAFKA_NAMESPACE: "kafka"
+      KAFKA_CLUSTER_NAME: "hamq-kafka"
+      TARGET_NAMESPACES: "kafka,hamq"
+      CHAOS_ENABLED: "${CHAOS_ENABLED:-false}"
+      EVENT_DB_PATH: "/data/controller.db"
+      API_PORT: "8003"
+    volumes:
+      - controller-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - hamq-net
+
+  # ── Prometheus ────────────────────────────────────────────────────────────
+  prometheus:
+    image: "prom/prometheus:v2.51.0"
+    container_name: hamq-prometheus
+    ports:
+      - "${PROMETHEUS_HOST_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    depends_on:
+      - producer
+      - consumer
+      - arbiter
+      - controller
+    networks:
+      - hamq-net
+
+  # ── Grafana ───────────────────────────────────────────────────────────────
+  grafana:
+    image: "grafana/grafana:10.4.0"
+    container_name: hamq-grafana
+    ports:
+      - "${GRAFANA_HOST_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD:-admin}"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - hamq-net
+
+# ── Persistent volumes ───────────────────────────────────────────────────────
+volumes:
+  kafka-data:
+  producer-data:
+  consumer-data:
+  arbiter-data:
+  controller-data:
+  prometheus-data:
+  grafana-data:
+
+# ── Network ──────────────────────────────────────────────────────────────────
+networks:
+  hamq-net:
+    driver: bridge
