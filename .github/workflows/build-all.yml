@@ -29,8 +29,8 @@ jobs:
   helm-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v5
         with:
           version: 'v3.15.0'
       - name: Lint all Helm charts

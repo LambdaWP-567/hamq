@@ -23,13 +23,13 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # ── Build all component images locally for the integration test ──────────
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build producer image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: components/producer
           push: false
@@ -37,7 +37,7 @@ jobs:
           load: true
 
       - name: Build consumer image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: components/consumer
           push: false
@@ -45,7 +45,7 @@ jobs:
           load: true
 
       - name: Build arbiter image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: components/arbiter
           push: false
