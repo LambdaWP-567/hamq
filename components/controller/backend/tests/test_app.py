@@ -572,9 +572,8 @@ class TestLogin:
     ) -> None:
         response = client.post(
             "/api/auth/login",
-            json={"username": "admin", "password": "admin"},
+            json={"username": settings.AUTH_USERNAME, "password": "admin"},
         )
-        # The default password hash in settings is bcrypt("admin")
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
