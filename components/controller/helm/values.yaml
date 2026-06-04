@@ -1,3 +1,13 @@
+# =============================================================================
+# HAMq Controller — Helm values
+#
+# All settings are exposed as Helm values; templates contain no hardcoded values.
+# Override per-environment with --set or a separate values-<env>.yaml file.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Container images
+# -----------------------------------------------------------------------------
 image:
   backend:
     repository: ghcr.io/lambdawp-567/hamq-controller
@@ -6,32 +16,73 @@ image:
   frontend:
     repository: ghcr.io/lambdawp-567/hamq-controller-ui
     tag: latest
+    pullPolicy: IfNotPresent
 
+# Number of controller replicas (single instance recommended — K8s operations
+# are non-idempotent and concurrent controllers may conflict).
 replicaCount: 1
 
+# -----------------------------------------------------------------------------
+# Controller behaviour
+# -----------------------------------------------------------------------------
 controller:
+  # Namespace where the Strimzi Kafka cluster is deployed
   kafkaNamespace: kafka
+  # Strimzi cluster name (value of the Kafka CR .metadata.name)
   kafkaClusterName: hamq-kafka
+  # Comma-separated list of namespaces the controller may operate in
   targetNamespaces: "kafka,hamq"
+  # ID shown in event log and UI
+  controllerId: "controller-1"
+  # Whether to load K8s config from in-cluster service account (true in K8s,
+  # false for local docker-compose where K8s ops are mocked)
+  inCluster: true
 
+# -----------------------------------------------------------------------------
+# Chaos engine
+# -----------------------------------------------------------------------------
 chaos:
+  # Master switch — chaos is DISABLED by default; enable only intentionally
   enabled: false
+  # Chaos action to perform: random_pod_delete | node_drain | network_partition
+  action: random_pod_delete
+  # Seconds between chaos rounds
   intervalSeconds: 60
+  # Maximum pods to affect per round (1–5)
   maxPodsPerRound: 1
+  # dry_run=true logs what would happen without making changes
+  dryRun: false
+  # Autostart chaos on pod startup (requires chaos.enabled: true)
+  autostart: false
 
+# -----------------------------------------------------------------------------
+# Kubernetes Services
+# -----------------------------------------------------------------------------
 service:
   backend:
     type: ClusterIP
     port: 8003
+    # Port exposed on the metrics endpoint (scraped by Prometheus)
+    metricsPort: 9090
   frontend:
     type: ClusterIP
     port: 3003
 
+# -----------------------------------------------------------------------------
+# Ingress
+# -----------------------------------------------------------------------------
 ingress:
   enabled: false
   className: nginx
   host: controller.hamq.local
+  # TLS: provide a secretName to enable HTTPS on the Ingress
+  tls: false
+  tlsSecretName: hamq-controller-tls
+  annotations: {}
 
+# -----------------------------------------------------------------------------
+# Resource requests and limits
+# -----------------------------------------------------------------------------
 resources:
   backend:
     requests:
@@ -40,24 +91,87 @@ resources:
     limits:
       memory: 512Mi
       cpu: 500m
+  frontend:
+    requests:
+      memory: 64Mi
+      cpu: 50m
+    limits:
+      memory: 128Mi
+      cpu: 200m
 
-monitoring:
-  enabled: true
-  serviceMonitor:
-    enabled: true
-    interval: 30s
-
-auth:
-  secretName: hamq-controller-auth
-
-rbac:
-  create: true
-
-serviceAccount:
-  create: true
-  name: hamq-controller
-
+# -----------------------------------------------------------------------------
+# Persistence — SQLite event store
+# The controller logs all K8s actions to a SQLite DB for audit and replay.
+# -----------------------------------------------------------------------------
 persistence:
   enabled: true
   storageClass: standard
   size: 1Gi
+  # Path inside the container where the PVC is mounted
+  mountPath: /data
+  # SQLite DB filename inside mountPath
+  dbFilename: controller.db
+
+# -----------------------------------------------------------------------------
+# Authentication
+# All sensitive values (password hash, secret key) must be provided
+# via a Kubernetes Secret named by auth.secretName.
+# -----------------------------------------------------------------------------
+auth:
+  # Name of the K8s Secret containing AUTH_PASSWORD_HASH and AUTH_SECRET_KEY
+  secretName: hamq-controller-auth
+  # Default username (non-sensitive, stored in ConfigMap)
+  username: admin
+  # JWT token expiry in minutes
+  tokenExpireMinutes: 1440
+
+# -----------------------------------------------------------------------------
+# Monitoring — Prometheus ServiceMonitor
+# Requires the Prometheus Operator CRDs to be installed.
+# -----------------------------------------------------------------------------
+monitoring:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    # Namespace where the ServiceMonitor should be created
+    namespace: monitoring
+    # Prometheus scrape interval
+    interval: 30s
+    # Label used by the Prometheus instance to select ServiceMonitors
+    prometheusRelease: prometheus
+
+# -----------------------------------------------------------------------------
+# RBAC — ClusterRole + ClusterRoleBinding
+# The controller needs cluster-wide permissions to manage pods, nodes,
+# and NetworkPolicies across multiple namespaces.
+# -----------------------------------------------------------------------------
+rbac:
+  # Set to false if you manage RBAC manually
+  create: true
+
+# -----------------------------------------------------------------------------
+# ServiceAccount
+# -----------------------------------------------------------------------------
+serviceAccount:
+  create: true
+  name: hamq-controller
+  # Additional annotations, e.g. for IRSA (AWS) or Workload Identity (GCP)
+  annotations: {}
+
+# -----------------------------------------------------------------------------
+# Pod-level settings
+# -----------------------------------------------------------------------------
+podAnnotations: {}
+podSecurityContext:
+  fsGroup: 1001
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false   # SQLite writes to /data; set true only if PVC is RW
+
+# Topology spread to avoid co-location with producers/consumers on same node
+affinity: {}
+tolerations: []
+nodeSelector: {}
