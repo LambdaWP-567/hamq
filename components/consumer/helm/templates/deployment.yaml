@@ -57,14 +57,13 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       volumes:
-        # Kafka cluster CA certificate (created by Strimzi)
+        {{- if .Values.kafka.tlsEnabled }}
         - name: kafka-ca-cert
           secret:
             secretName: {{ .Values.kafka.caCertSecret }}
             items:
               - key: ca.crt
                 path: ca.crt
-        # Kafka user TLS certificate and key (created by Strimzi User Operator)
         - name: kafka-user-cert
           secret:
             secretName: {{ .Values.kafka.userSecret }}
@@ -73,6 +72,7 @@ spec:
                 path: user.crt
               - key: user.key
                 path: user.key
+        {{- end }}
         {{- if .Values.persistence.enabled }}
         # Persistent volume for the SQLite message database
         - name: consumer-data
@@ -118,19 +118,21 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
           volumeMounts:
+            {{- if .Values.kafka.tlsEnabled }}
             - name: kafka-ca-cert
               mountPath: /certs/ca
               readOnly: true
             - name: kafka-user-cert
               mountPath: /certs/user
               readOnly: true
+            {{- end }}
             {{- if .Values.persistence.enabled }}
             - name: consumer-data
               mountPath: /data
             {{- end }}
           livenessProbe:
             httpGet:
-              path: /health
+              path: /api/health
               port: http-backend
             initialDelaySeconds: 20
             periodSeconds: 15
@@ -138,7 +140,7 @@ spec:
             timeoutSeconds: 5
           readinessProbe:
             httpGet:
-              path: /health
+              path: /api/health
               port: http-backend
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -146,6 +148,7 @@ spec:
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.resources.backend | nindent 12 }}
+        {{- if .Values.image.frontend.enabled }}
         # ---------------------------------------------------------------
         # Frontend container — Nginx serving the React SPA
         # ---------------------------------------------------------------
@@ -184,3 +187,4 @@ spec:
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.resources.frontend | nindent 12 }}
+        {{- end }}

@@ -12,6 +12,7 @@ image:
     tag: latest
     pullPolicy: IfNotPresent
   frontend:
+    enabled: true
     repository: ghcr.io/lambdawp-567/hamq-consumer-ui
     tag: latest
     pullPolicy: IfNotPresent

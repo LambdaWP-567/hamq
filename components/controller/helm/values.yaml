@@ -14,6 +14,7 @@ image:
     tag: latest
     pullPolicy: IfNotPresent
   frontend:
+    enabled: true
     repository: ghcr.io/lambdawp-567/hamq-controller-ui
     tag: latest
     pullPolicy: IfNotPresent

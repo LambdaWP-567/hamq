@@ -17,6 +17,10 @@ spec:
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "hamq-controller.serviceAccountName" . }}
       securityContext:
         runAsNonRoot: true
@@ -89,6 +93,7 @@ spec:
               drop:
                 - ALL
 
+        {{- if .Values.image.frontend.enabled }}
         # -------------------------------------------------------------------
         # Frontend container
         # -------------------------------------------------------------------
@@ -124,6 +129,7 @@ spec:
             capabilities:
               drop:
                 - ALL
+        {{- end }}
 
       volumes:
         {{- if .Values.persistence.enabled }}

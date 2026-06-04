@@ -23,10 +23,12 @@ CORS
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
 from app.audit_store import AuditStore
@@ -143,6 +145,15 @@ app.add_middleware(
 # Include routes
 # ---------------------------------------------------------------------------
 app.include_router(router)
+
+# ---------------------------------------------------------------------------
+# Serve React SPA (must be mounted AFTER API routes)
+# ---------------------------------------------------------------------------
+_static_dir = Path(__file__).parent.parent / "static"
+if _static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
+else:
+    logging.getLogger(__name__).warning("No static/ directory — React SPA not served (%s)", _static_dir)
 
 
 # ---------------------------------------------------------------------------

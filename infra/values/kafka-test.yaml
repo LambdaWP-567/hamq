@@ -1,0 +1,26 @@
+kafka:
+  version: "4.1.0"
+  storage:
+    type: persistent-claim
+    size: 2Gi
+    storageClass: local-path
+    deleteClaim: true
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: "200m"
+    limits:
+      memory: 1Gi
+      cpu: "1000m"
+  jvmOptions:
+    xmx: 256m
+    xms: 256m
+  listeners:
+    external:
+      enabled: false
+certManager:
+  enabled: false
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false

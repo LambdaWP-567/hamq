@@ -42,12 +42,12 @@ spec:
                 name: {{ include "hamq-controller.fullname" . }}-backend
                 port:
                   number: {{ .Values.service.backend.port }}
-          # All other traffic → frontend
+          # All other traffic — frontend SPA when enabled, backend otherwise
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: {{ include "hamq-controller.fullname" . }}-frontend
+                name: {{ include "hamq-controller.fullname" . }}-{{- if .Values.image.frontend.enabled }}frontend{{- else }}backend{{- end }}
                 port:
-                  number: {{ .Values.service.frontend.port }}
+                  number:{{- if .Values.image.frontend.enabled }} {{ .Values.service.frontend.port }}{{- else }} {{ .Values.service.backend.port }}{{- end }}
 {{- end }}

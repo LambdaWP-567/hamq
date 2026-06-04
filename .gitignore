@@ -21,3 +21,10 @@ htmlcov/
 .coverage
 coverage.xml
 *.log
+
+# Helm downloaded dependencies and generated lock artifacts
+**/charts/*.tgz
+**/Chart.lock
+
+# Cluster credentials — never commit
+infra/kubeconfig

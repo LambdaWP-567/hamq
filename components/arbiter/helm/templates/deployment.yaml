@@ -132,6 +132,7 @@ spec:
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.resources.backend | nindent 12 }}
+        {{- if .Values.image.frontend.enabled }}
         # ---------------------------------------------------------------
         # Frontend container — Nginx serving the React SPA
         # ---------------------------------------------------------------
@@ -170,3 +171,4 @@ spec:
             timeoutSeconds: 5
           resources:
             {{- toYaml .Values.resources.frontend | nindent 12 }}
+        {{- end }}

@@ -283,8 +283,6 @@ spec:
       # Disable implicit topic creation — all topics must be declared via KafkaTopic resources.
       auto.create.topics.enable: {{ .Values.kafka.config.autoCreateTopicsEnable }}
 
-      # Inter-broker protocol version — must match kafka.version major.minor
-      inter.broker.protocol.version: "3.8"
 
     # -------------------------------------------------------------------------
     # Prometheus JMX metrics exporter
