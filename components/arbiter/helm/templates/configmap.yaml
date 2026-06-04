@@ -26,7 +26,7 @@ data:
   API_PORT: {{ .Values.service.backend.port | quote }}
 
   # SQLite audit database path (inside the PVC mount)
-  DB_PATH: {{ .Values.persistence.mountPath | quote }}/arbiter_audit.db
+  DB_PATH: {{ printf "%s/arbiter_audit.db" .Values.persistence.mountPath | quote }}
 
   # JWT token expiry
   TOKEN_EXPIRE_MINUTES: {{ .Values.auth.tokenExpireMinutes | quote }}
