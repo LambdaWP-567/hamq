@@ -111,6 +111,11 @@ async def prometheus_metrics() -> Response:
     summary="Get current producer status",
     tags=["producer"],
 )
+@router.get(
+    "/api/v1/producer/status",
+    response_model=ProducerStatus,
+    include_in_schema=False,
+)
 async def get_status(
     request: Request,
     _: str = Depends(get_current_user),
@@ -133,6 +138,7 @@ async def get_status(
     summary="Start the message generation loop",
     tags=["producer"],
 )
+@router.post("/api/v1/producer/start", include_in_schema=False)
 async def start_producer(
     request: Request,
     _: str = Depends(get_current_user),
@@ -152,6 +158,7 @@ async def start_producer(
     summary="Stop the message generation loop",
     tags=["producer"],
 )
+@router.post("/api/v1/producer/stop", include_in_schema=False)
 async def stop_producer(
     request: Request,
     _: str = Depends(get_current_user),
@@ -172,6 +179,7 @@ async def stop_producer(
     summary="Update message generation frequency",
     tags=["producer"],
 )
+@router.put("/api/v1/producer/frequency", include_in_schema=False)
 async def update_frequency(
     body: FrequencyUpdate,
     request: Request,
