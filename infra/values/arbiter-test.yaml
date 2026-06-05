@@ -23,7 +23,7 @@ monitoring:
   serviceMonitor:
     enabled: false
 ingress:
-  enabled: false
+  enabled: true
   className: traefik
   host: arbiter.hamq.test
 imagePullSecrets:

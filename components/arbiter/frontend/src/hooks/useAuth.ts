@@ -26,15 +26,9 @@ export function useAuth() {
   const login = useCallback(
     async (username: string, password: string): Promise<boolean> => {
       try {
-        // The backend expects application/x-www-form-urlencoded for OAuth2
-        const params = new URLSearchParams()
-        params.append('username', username)
-        params.append('password', password)
-
         const response = await axios.post<TokenResponse>(
           '/api/auth/login',
-          params,
-          { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+          { username, password }
         )
         const jwt = response.data.access_token
         localStorage.setItem(TOKEN_KEY, jwt)

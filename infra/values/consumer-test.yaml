@@ -30,7 +30,7 @@ monitoring:
 certManager:
   enabled: false
 ingress:
-  enabled: false
+  enabled: true
   className: traefik
   host: consumer.hamq.test
 imagePullSecrets:
