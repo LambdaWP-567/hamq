@@ -32,6 +32,6 @@ certManager:
 ingress:
   enabled: true
   className: traefik
-  host: consumer.hamq.local
+  host: consumer.hamq.test
 imagePullSecrets:
   - name: ghcr-secret

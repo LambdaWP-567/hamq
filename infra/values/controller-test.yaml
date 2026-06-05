@@ -25,6 +25,6 @@ monitoring:
 ingress:
   enabled: true
   className: traefik
-  host: controller.hamq.local
+  host: controller.hamq.test
 imagePullSecrets:
   - name: ghcr-secret
