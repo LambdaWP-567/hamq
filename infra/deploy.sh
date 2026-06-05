@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# deploy.sh — deploy HAMq to the 3-node k3s test cluster
+# deploy.sh — deploy HAMq to the k3s test cluster (single-node)
 #
 # Requires:
-#   - KUBECONFIG pointing at the k3s cluster (infra/kubeconfig)
+#   - KUBECONFIG env var pointing at the k3s cluster, OR infra/kubeconfig
 #   - helm, kubectl in PATH
-#   - GHCR_TOKEN env var OR edit GHCR_USER/GHCR_TOKEN below
+#   - GHCR_TOKEN env var (GitHub PAT with read:packages scope)
 # =============================================================================
 
 set -euo pipefail
@@ -15,7 +15,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VALUES_DIR="${SCRIPT_DIR}/values"
 
-export KUBECONFIG="${SCRIPT_DIR}/kubeconfig"
+# Respect an existing KUBECONFIG (e.g. /etc/rancher/k3s/k3s.yaml on the runner),
+# falling back to the local infra/kubeconfig for manual runs.
+export KUBECONFIG="${KUBECONFIG:-${SCRIPT_DIR}/kubeconfig}"
 
 GHCR_USER="lambdawp-567"
 # Set GHCR_TOKEN env var before running: export GHCR_TOKEN=<your-pat>
@@ -24,7 +26,7 @@ GHCR_TOKEN="${GHCR_TOKEN:?GHCR_TOKEN env var must be set (GitHub PAT with read:p
 KAFKA_NS="kafka"
 APP_NS="hamq"
 
-TRAEFIK_IP="192.168.122.10"
+TRAEFIK_IP="192.168.1.22"
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 log()   { printf '\033[0;32m[%s] [INFO]  %s\033[0m\n' "$(date '+%H:%M:%S')" "$*" >&2; }
@@ -136,8 +138,8 @@ kubectl rollout status deployment/strimzi-cluster-operator \
   -n "$KAFKA_NS" --timeout=300s
 log "Strimzi operator is ready"
 
-step "6 — Wait for Kafka brokers (KafkaNodePool)"
-log "Waiting for all 3 broker pods to be Running (up to 10 min)..."
+step "6 — Wait for Kafka broker (KafkaNodePool)"
+log "Waiting for Kafka broker pod to be Running (up to 10 min)..."
 for attempt in $(seq 1 60); do
   ready=$(kubectl get pods -n "$KAFKA_NS" \
     -l strimzi.io/name=hamq-kafka-kafka \
@@ -148,12 +150,12 @@ for attempt in $(seq 1 60); do
     --no-headers 2>/dev/null \
     | wc -l || true)
   log "  attempt $attempt/60 — brokers Running: $ready/$total"
-  if [[ "$ready" -ge 3 ]]; then
-    log "All 3 Kafka brokers are Running"
+  if [[ "$ready" -ge 1 ]]; then
+    log "Kafka broker is Running"
     break
   fi
   if [[ $attempt -eq 60 ]]; then
-    warn "Timeout waiting for brokers — current pod state:"
+    warn "Timeout waiting for broker — current pod state:"
     kubectl get pods -n "$KAFKA_NS" | sed 's/^/  /'
     error "Kafka did not become ready in time"
   fi

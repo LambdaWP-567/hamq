@@ -1,0 +1,54 @@
+name: Setup Infrastructure
+
+# Idempotent cluster setup workflow — installs k3s if not present, then
+# configures all prerequisites required before deploy.yml can run.
+#
+# Runs on the self-hosted runner (cubecluster).  For a brand-new machine
+# that has no runner yet, run infra/bootstrap.sh manually once first.
+#
+# Inputs:
+#   action  — "setup" (default) or "teardown"
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "setup | teardown"
+        required: false
+        default: "setup"
+        type: choice
+        options:
+          - setup
+          - teardown
+
+permissions:
+  contents: read
+
+jobs:
+  infra:
+    runs-on: [self-hosted, cubecluster]
+    timeout-minutes: 20
+
+    env:
+      KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run infra setup / teardown
+        run: |
+          ACTION="${{ github.event.inputs.action }}"
+          ACTION="${ACTION:-setup}"
+          bash infra/setup-k3s-single.sh "$ACTION"
+
+      - name: Cluster status
+        if: always()
+        run: |
+          echo "=== nodes ==="
+          kubectl get nodes -o wide 2>/dev/null || echo "cluster not reachable"
+          echo "=== system pods ==="
+          kubectl get pods -n kube-system 2>/dev/null || true
+          echo "=== storage classes ==="
+          kubectl get storageclass 2>/dev/null || true
+          echo "=== ingress classes ==="
+          kubectl get ingressclass 2>/dev/null || true

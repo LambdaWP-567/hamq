@@ -1,12 +1,11 @@
 name: Deploy to Test Cluster
 
-# Runs on the self-hosted runner on cubecluster, which has direct access to
-# the libvirt VM cluster at 192.168.122.0/24.
+# Runs on the self-hosted runner on cubecluster (the k3s host itself).
+# kubectl/helm use /etc/rancher/k3s/k3s.yaml directly — no KUBECONFIG secret needed.
 #
 # Trigger manually or automatically after build-all succeeds on main.
 # Requires secrets:
-#   GHCR_TOKEN    — GitHub PAT with read:packages scope
-#   KUBECONFIG_B64 — base64-encoded infra/kubeconfig (never commit the raw file)
+#   GHCR_TOKEN — GitHub PAT with read:packages scope
 
 on:
   workflow_dispatch:
@@ -30,14 +29,11 @@ jobs:
 
     timeout-minutes: 30
 
+    env:
+      KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
     steps:
       - uses: actions/checkout@v6
-
-      - name: Write kubeconfig
-        run: |
-          mkdir -p infra
-          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > infra/kubeconfig
-          chmod 600 infra/kubeconfig
 
       - name: Deploy HAMq
         env:
@@ -64,6 +60,9 @@ jobs:
             fi
           done
 
-      - name: Cleanup kubeconfig
+      - name: Show final cluster state
         if: always()
-        run: rm -f infra/kubeconfig
+        run: |
+          kubectl get pods -n kafka -o wide 2>/dev/null || true
+          kubectl get pods -n hamq  -o wide 2>/dev/null || true
+          kubectl get ingress -n hamq 2>/dev/null || true

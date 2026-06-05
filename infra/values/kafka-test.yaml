@@ -1,5 +1,12 @@
 kafka:
   version: "4.1.0"
+  replicas: 1
+  config:
+    defaultReplicationFactor: 1
+    minInsyncReplicas: 1
+    offsetsTopicReplicationFactor: 1
+    transactionStateLogReplicationFactor: 1
+    transactionStateLogMinIsr: 1
   storage:
     type: persistent-claim
     size: 2Gi
@@ -16,8 +23,17 @@ kafka:
     xmx: 256m
     xms: 256m
   listeners:
+    tls:
+      enabled: false
     external:
       enabled: false
+topics:
+  messages:
+    replicas: 1
+    config:
+      minInsyncReplicas: "1"
+  dlq:
+    replicas: 1
 certManager:
   enabled: false
 monitoring:
