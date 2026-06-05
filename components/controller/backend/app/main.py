@@ -153,6 +153,9 @@ _static_dir = Path(__file__).parent.parent / "static"
 if _static_dir.exists():
     @app.get("/{full_path:path}", include_in_schema=False)
     async def _spa_fallback(full_path: str) -> FileResponse:
+        candidate = _static_dir / full_path
+        if candidate.is_file():
+            return FileResponse(str(candidate))
         return FileResponse(str(_static_dir / "index.html"))
 
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")

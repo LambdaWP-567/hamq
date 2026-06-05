@@ -170,6 +170,9 @@ def create_app() -> FastAPI:
         # directory paths — explicit paths like /login get 404 without this.
         @app.get("/{full_path:path}", include_in_schema=False)
         async def _spa_fallback(full_path: str) -> FileResponse:
+            candidate = static_dir / full_path
+            if candidate.is_file():
+                return FileResponse(str(candidate))
             return FileResponse(str(index))
 
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")

@@ -132,6 +132,9 @@ _STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
 if os.path.isdir(_STATIC_DIR):
     @app.get("/{full_path:path}", include_in_schema=False)
     async def _spa_fallback(full_path: str) -> FileResponse:
+        candidate = os.path.join(_STATIC_DIR, full_path)
+        if os.path.isfile(candidate):
+            return FileResponse(candidate)
         return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
 
     app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="static")
