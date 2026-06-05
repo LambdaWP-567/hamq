@@ -1,6 +1,6 @@
 image:
   frontend:
-    enabled: false
+    enabled: true
 persistence:
   storageClass: local-path
 resources:
