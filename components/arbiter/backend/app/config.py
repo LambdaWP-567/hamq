@@ -38,11 +38,17 @@ class Settings(BaseSettings):
             "Example: http://producer-0:8000,http://producer-1:8000"
         )
     )
-    # JWT bearer token to authenticate requests to the Producer API.
-    # Leave blank if the Producer API is on the same private network without auth.
     PRODUCER_API_TOKEN: str = Field(
         default="",
-        description="JWT bearer token for authenticating Producer API requests"
+        description="Static JWT bearer token for Producer API (overrides auto-login)"
+    )
+    PRODUCER_API_USERNAME: str = Field(
+        default="admin",
+        description="Username for Producer API auto-login"
+    )
+    PRODUCER_API_PASSWORD: str = Field(
+        default="admin",
+        description="Password for Producer API auto-login"
     )
 
     # -------------------------------------------------------------------------
@@ -54,7 +60,15 @@ class Settings(BaseSettings):
     )
     CONSUMER_API_TOKEN: str = Field(
         default="",
-        description="JWT bearer token for authenticating Consumer API requests"
+        description="Static JWT bearer token for Consumer API (overrides auto-login)"
+    )
+    CONSUMER_API_USERNAME: str = Field(
+        default="admin",
+        description="Username for Consumer API auto-login"
+    )
+    CONSUMER_API_PASSWORD: str = Field(
+        default="admin",
+        description="Password for Consumer API auto-login"
     )
 
     # -------------------------------------------------------------------------

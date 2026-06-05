@@ -118,23 +118,21 @@ class Reconciler:
     def __init__(self, audit_store: AuditStore) -> None:
         self._store = audit_store
         self._running = False
-        # The asyncio task handle; kept so we can cancel it on stop()
         self._task: Optional[asyncio.Task] = None
-        # Snapshot of the latest reconcile result for status reporting
         self._last_report: Optional[ReconcileReport] = None
         self._last_loss_rate: Optional[float] = None
         self._last_reconcile_at: Optional[str] = None
 
-        # Parse the comma-separated producer URL list once at construction
         self._producer_urls: list[str] = [
             url.strip()
             for url in settings.PRODUCER_API_URLS.split(",")
             if url.strip()
         ]
 
-        # Shared async HTTP client — reused across all requests for connection
-        # pooling.  Created in start() so it is within the event loop context.
         self._http: Optional[httpx.AsyncClient] = None
+        # Cached tokens — refreshed automatically when a 401 is received
+        self._producer_token: str = settings.PRODUCER_API_TOKEN
+        self._consumer_token: str = settings.CONSUMER_API_TOKEN
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -327,7 +325,7 @@ class Reconciler:
         ProducerAuditResult or None if the producer API is unreachable.
         """
         # Step 1: fetch sent sequences from the Producer API
-        sent_tuples = await self._fetch_producer_sequences(producer_url, settings.PRODUCER_API_TOKEN)
+        sent_tuples = await self._fetch_producer_sequences(producer_url, "")
         if not sent_tuples:
             logger.warning("No sequences returned from %s — skipping", producer_url)
             return None
@@ -409,6 +407,42 @@ class Reconciler:
         )
 
     # ------------------------------------------------------------------
+    # Auto-login helpers
+    # ------------------------------------------------------------------
+
+    async def _login(self, base_url: str, username: str, password: str) -> str:
+        """POST /api/auth/login and return the access token, or empty string on failure."""
+        try:
+            resp = await self._http.post(
+                f"{base_url}/api/auth/login",
+                json={"username": username, "password": password},
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            return resp.json().get("access_token", "")
+        except Exception as exc:
+            logger.error("Auto-login to %s failed: %s", base_url, exc)
+            return ""
+
+    async def _ensure_producer_token(self, producer_url: str) -> str:
+        if not self._producer_token:
+            self._producer_token = await self._login(
+                producer_url,
+                settings.PRODUCER_API_USERNAME,
+                settings.PRODUCER_API_PASSWORD,
+            )
+        return self._producer_token
+
+    async def _ensure_consumer_token(self) -> str:
+        if not self._consumer_token:
+            self._consumer_token = await self._login(
+                settings.CONSUMER_API_URL,
+                settings.CONSUMER_API_USERNAME,
+                settings.CONSUMER_API_PASSWORD,
+            )
+        return self._consumer_token
+
+    # ------------------------------------------------------------------
     # External API fetchers
     # ------------------------------------------------------------------
 
@@ -417,32 +451,9 @@ class Reconciler:
         producer_url: str,
         token: str,
     ) -> set[tuple[str, int]]:
-        """
-        Call the Producer API to retrieve recently-sent message sequences.
-
-        Endpoint: GET {producer_url}/api/messages/recent?limit=N
-        Expected JSON response:
-          {
-              "producer_id": "producer-1",
-              "sequences": [1, 2, 3, ...],
-              "total": N
-          }
-
-        Parameters
-        ----------
-        producer_url:
-            Base URL of the producer (no trailing slash).
-        token:
-            Bearer token; empty string means no auth header.
-
-        Returns
-        -------
-        Set of (producer_id, sequence_number) tuples.
-        """
+        token = await self._ensure_producer_token(producer_url)
         url = f"{producer_url}/api/messages/recent"
-        headers = {}
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
 
         try:
             resp = await self._http.get(
@@ -450,13 +461,21 @@ class Reconciler:
                 params={"limit": settings.RECONCILE_LOOKBACK_MESSAGES},
                 headers=headers,
             )
+            if resp.status_code == 401:
+                # Token expired — force refresh and retry once
+                self._producer_token = ""
+                token = await self._ensure_producer_token(producer_url)
+                headers = {"Authorization": f"Bearer {token}"} if token else {}
+                resp = await self._http.get(
+                    url,
+                    params={"limit": settings.RECONCILE_LOOKBACK_MESSAGES},
+                    headers=headers,
+                )
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             logger.error(
                 "Producer API %s returned HTTP %d: %s",
-                url,
-                exc.response.status_code,
-                exc.response.text[:200],
+                url, exc.response.status_code, exc.response.text[:200],
             )
             return set()
         except httpx.RequestError as exc:
@@ -464,8 +483,16 @@ class Reconciler:
             return set()
 
         data = resp.json()
-        producer_id: str = data.get("producer_id", "unknown")
-        sequences: list[int] = data.get("sequences", [])
+        # Handle list format: [{id, sequence, producer_id, ...}, ...]
+        if isinstance(data, list):
+            if not data:
+                return set()
+            producer_id: str = data[0].get("producer_id", "unknown")
+            sequences: list[int] = [msg["sequence"] for msg in data if "sequence" in msg]
+        else:
+            # Handle dict format: {producer_id, sequences, total}
+            producer_id = data.get("producer_id", "unknown")
+            sequences = data.get("sequences", [])
 
         return {(producer_id, seq) for seq in sequences}
 
@@ -475,71 +502,38 @@ class Reconciler:
         seq_to: int,
         producer_id: str,
     ) -> set[int]:
-        """
-        Call the Consumer API to find which sequences in [seq_from, seq_to]
-        it has NOT received for the given producer.
-
-        Endpoint: GET {consumer_url}/api/messages/missing
-                  ?producer_id=X&seq_from=N&seq_to=M
-        Expected JSON response:
-          {
-              "producer_id": "producer-1",
-              "missing": [5, 12],
-              "checked_range": [N, M]
-          }
-
-        We compute the received set as:
-            received = full_range - missing
-
-        Parameters
-        ----------
-        seq_from, seq_to:
-            Inclusive bounds of the sequence range to check.
-        producer_id:
-            The producer whose sequences are being checked.
-
-        Returns
-        -------
-        Set of sequence numbers that the consumer DID receive.
-        """
+        token = await self._ensure_consumer_token()
         url = f"{settings.CONSUMER_API_URL}/api/messages/missing"
-        headers = {}
-        if settings.CONSUMER_API_TOKEN:
-            headers["Authorization"] = f"Bearer {settings.CONSUMER_API_TOKEN}"
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        params = {"producer_id": producer_id, "seq_from": seq_from, "seq_to": seq_to}
 
         try:
-            resp = await self._http.get(
-                url,
-                params={
-                    "producer_id": producer_id,
-                    "seq_from": seq_from,
-                    "seq_to": seq_to,
-                },
-                headers=headers,
-            )
+            resp = await self._http.get(url, params=params, headers=headers)
+            if resp.status_code == 401:
+                self._consumer_token = ""
+                token = await self._ensure_consumer_token()
+                headers = {"Authorization": f"Bearer {token}"} if token else {}
+                resp = await self._http.get(url, params=params, headers=headers)
             resp.raise_for_status()
         except httpx.HTTPStatusError as exc:
             logger.error(
                 "Consumer API %s returned HTTP %d: %s",
-                url,
-                exc.response.status_code,
-                exc.response.text[:200],
+                url, exc.response.status_code, exc.response.text[:200],
             )
-            # If consumer API fails, return empty set so everything looks missing.
-            # The caller will see 100% loss and fire an alert — better than
-            # silently reporting 0% loss when we can't verify.
             return set()
         except httpx.RequestError as exc:
             logger.error("Network error calling Consumer API %s: %s", url, exc)
             return set()
 
         data = resp.json()
-        missing_at_consumer: list[int] = data.get("missing", [])
+        # Consumer returns either List[int] (missing seqs) or {missing: [...]}
+        if isinstance(data, list):
+            missing_at_consumer: list[int] = data
+        else:
+            missing_at_consumer = data.get("missing", [])
 
-        # Build the full expected range and subtract missing
         full_range = set(range(seq_from, seq_to + 1))
-        received = full_range - set(missing_at_consumer)
-        return received
+        return full_range - set(missing_at_consumer)
 
     # ------------------------------------------------------------------
     # Alerting
