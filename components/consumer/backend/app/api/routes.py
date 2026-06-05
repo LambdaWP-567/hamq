@@ -336,7 +336,7 @@ async def websocket_status(
     try:
         while True:
             status_obj = svc.get_status()
-            recent_rows = await svc.store.get_recent(limit=10)
+            recent_rows = await svc.store.get_recent(limit=50)
             recent = [_row_to_model(r) for r in recent_rows]
 
             update = StatusUpdate(

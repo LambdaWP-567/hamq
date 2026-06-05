@@ -16,6 +16,7 @@
     "consumer_id": "Konsument-ID"
   },
   "controls": {
+    "title": "Konsumenten-Steuerung",
     "start": "Empfang starten",
     "stop": "Empfang stoppen",
     "starting": "Wird gestartet…",
@@ -31,7 +32,7 @@
     "invalid": "Ungültig",
     "id": "ID",
     "frequency": "Frequenz (Hz)",
-    "no_messages": "Keine Nachrichten gefunden",
+    "no_messages": "Noch keine Nachrichten — warte auf Produzent",
     "load_error": "Fehler beim Laden der Nachrichten"
   },
   "search": {
@@ -45,6 +46,17 @@
     "receive_rate": "Empfangsrate (Nachrichten/s)",
     "time": "Zeit",
     "messages_per_second": "Nachrichten/s"
+  },
+  "stats": {
+    "title": "Statistiken",
+    "rate_dist": "Ratenverteilung (Nachr./s Bereiche)",
+    "samples": "Stichproben",
+    "no_data": "Noch keine Daten — warte auf Nachrichten"
+  },
+  "tooltips": {
+    "lag": "Anzahl der produzierten, aber noch nicht verarbeiteten Nachrichten. Ein hoher Wert bedeutet, dass dieser Konsument hinter dem Produzenten zurückliegt.",
+    "lag_unit": "Nachrichten",
+    "checksum": "Jede Nachricht enthält eine SHA-256-Prüfsumme ihrer Nutzdaten. Der Konsument berechnet diese beim Empfang neu – ein Unterschied zeigt an, dass die Daten übertragungsbedingt beschädigt oder verändert wurden."
   },
   "pagination": {
     "page": "Seite",

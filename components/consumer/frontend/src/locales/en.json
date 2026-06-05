@@ -16,6 +16,7 @@
     "consumer_id": "Consumer ID"
   },
   "controls": {
+    "title": "Consumer Control",
     "start": "Start Consuming",
     "stop": "Stop Consuming",
     "starting": "Starting…",
@@ -31,7 +32,7 @@
     "invalid": "Invalid",
     "id": "ID",
     "frequency": "Frequency (Hz)",
-    "no_messages": "No messages found",
+    "no_messages": "No messages yet — waiting for producer",
     "load_error": "Error loading messages"
   },
   "search": {
@@ -45,6 +46,17 @@
     "receive_rate": "Receive Rate (msg/s)",
     "time": "Time",
     "messages_per_second": "Messages/s"
+  },
+  "stats": {
+    "title": "Statistics",
+    "rate_dist": "Rate Distribution (msg/s buckets)",
+    "samples": "Samples",
+    "no_data": "No data yet — awaiting messages"
+  },
+  "tooltips": {
+    "lag": "Number of messages that have been produced but not yet consumed by this consumer. High lag means the consumer is falling behind the producer.",
+    "lag_unit": "messages",
+    "checksum": "Each message carries a SHA-256 checksum of its payload. The consumer recomputes it on receipt — a mismatch means the data was corrupted or altered in transit."
   },
   "pagination": {
     "page": "Page",

@@ -12,7 +12,7 @@ import React, { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { ReceivedMessage } from '../types'
 
-const MAX_DISPLAY = 100
+const MAX_DISPLAY = 50
 
 function formatTimestamp(iso: string): string {
   try {
@@ -81,7 +81,7 @@ export default function MessageLog({ messages }: MessageLogProps) {
         ref={containerRef}
         onScroll={handleScroll}
         className="overflow-y-auto"
-        style={{ maxHeight: '420px', contain: 'strict' }}
+        style={{ maxHeight: '420px' }}
         aria-label="Consumer message log"
         role="log"
         aria-live="polite"

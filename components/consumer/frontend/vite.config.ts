@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -39,5 +40,11 @@ export default defineConfig({
     // copied into the Docker image by the multi-stage Dockerfile.
     outDir: '../backend/static',
     emptyOutDir: true,
+  },
+
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.ts'],
   },
 })

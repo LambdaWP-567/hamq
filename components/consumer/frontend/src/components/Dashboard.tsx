@@ -1,12 +1,4 @@
-/**
- * Dashboard.tsx — Main dashboard for the HAMq Consumer UI.
- *
- * Shows live consumer status (connection, messages received, gaps detected,
- * consumer group lag), a control panel, a message log, and stats charts.
- * All real-time data is delivered via the WebSocket hook.
- */
-
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useApi } from '../hooks/useApi'
@@ -19,8 +11,9 @@ import type {
 } from '../types'
 import MessageLog from './MessageLog'
 import Stats from './Stats'
+import LanguageSwitcher from './LanguageSwitcher'
+import InfoTooltip from './InfoTooltip'
 
-// Max history points kept for rate chart
 const MAX_RATE_POINTS = 60
 
 interface DashboardProps {
@@ -46,7 +39,6 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
     const s = update.status
     setStatus(s)
 
-    // Derive message rate from delta in received_count
     const label = new Date().toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
@@ -63,34 +55,54 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
     })
 
     if (update.recent_messages) {
-      setMessages(update.recent_messages.slice(-100))
+      setMessages(update.recent_messages.slice(-50))
     }
   }, [])
 
   const { connected } = useWebSocket({ token, onMessage: handleWsMessage })
 
-  // Keep wsConnected in sync with the hook return value
   useEffect(() => {
     setWsConnected(connected)
   }, [connected])
 
   // ------------------------------------------------------------------
-  // Poll status every 2 s (WebSocket pushes faster updates on top)
+  // Auto-start consuming on mount (once), then poll status every 2 s
   // ------------------------------------------------------------------
+  const autoStarted = useRef(false)
+
   useEffect(() => {
     let cancelled = false
+
     const fetchStatus = () => {
       api.getStatus()
         .then((s) => { if (!cancelled) setStatus(s) })
         .catch(() => {})
     }
-    fetchStatus()
+
+    // Auto-start on first load if the consumer is not already running
+    if (!autoStarted.current) {
+      autoStarted.current = true
+      ;(async () => {
+        try {
+          const s = await api.getStatus()
+          if (!cancelled) setStatus(s)
+          if (!s.running) {
+            await api.startConsumer()
+            const updated = await api.getStatus()
+            if (!cancelled) setStatus(updated)
+          }
+        } catch {}
+      })()
+    } else {
+      fetchStatus()
+    }
+
     const id = setInterval(fetchStatus, 2000)
     return () => { cancelled = true; clearInterval(id) }
   }, [api])
 
   // ------------------------------------------------------------------
-  // Start / Stop consumer
+  // Start / Stop consumer (manual toggle)
   // ------------------------------------------------------------------
   const handleToggle = useCallback(async () => {
     if (!status) return
@@ -105,27 +117,21 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
       const updated = await api.getStatus()
       setStatus(updated)
     } catch {
-      setActionError(status.running ? 'Failed to stop consumer' : 'Failed to start consumer')
+      setActionError(status.running ? t('controls.stop') : t('controls.start'))
     } finally {
       setActionPending(false)
     }
-  }, [api, status])
+  }, [api, status, t])
 
-  // ------------------------------------------------------------------
-  // Derived values
-  // ------------------------------------------------------------------
   const isRunning = status?.running ?? false
   const lagVariant = (status?.lag_estimate ?? 0) > 1000 ? 'warning' : 'ok'
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* ----------------------------------------------------------------
-          Navigation bar
-      ---------------------------------------------------------------- */}
+      {/* Navigation bar */}
       <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Title + consumer ID */}
             <div className="flex items-center gap-3">
               <h1 className="text-lg font-bold text-gray-900 dark:text-white">
                 {t('nav.title')}
@@ -137,7 +143,6 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
               )}
             </div>
 
-            {/* Right: WS indicator + logout */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <span
@@ -149,6 +154,8 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
                   {wsConnected ? 'Live' : 'Offline'}
                 </span>
               </div>
+
+              <LanguageSwitcher />
 
               <button
                 onClick={onLogout}
@@ -164,12 +171,10 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
         </div>
       </nav>
 
-      {/* ----------------------------------------------------------------
-          Main content
-      ---------------------------------------------------------------- */}
+      {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
-        {/* Status cards row */}
+        {/* Status cards */}
         <section className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Kafka connection */}
           <div className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm p-4 border-l-4
@@ -200,13 +205,14 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
             </p>
           </div>
 
-          {/* Consumer lag */}
+          {/* Consumer lag — with unit + tooltip */}
           <div className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm p-4 border-l-4
             ${lagVariant === 'warning'
               ? 'border-yellow-200 dark:border-yellow-700'
               : 'border-gray-200 dark:border-gray-600'}`}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center">
               {t('status.lag')}
+              <InfoTooltip text={t('tooltips.lag')} />
             </p>
             <p className={`mt-1 text-2xl font-bold tabular-nums ${
               lagVariant === 'warning'
@@ -214,16 +220,20 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
                 : 'text-gray-800 dark:text-gray-200'
             }`}>
               {(status?.lag_estimate ?? 0).toLocaleString()}
+              <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+                {t('tooltips.lag_unit')}
+              </span>
             </p>
           </div>
 
-          {/* Checksum errors */}
+          {/* Checksum errors — with tooltip */}
           <div className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm p-4 border-l-4
             ${(status?.checksum_errors ?? 0) > 0
               ? 'border-red-200 dark:border-red-700'
               : 'border-gray-200 dark:border-gray-600'}`}>
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center">
               {t('status.checksum_errors')}
+              <InfoTooltip text={t('tooltips.checksum')} />
             </p>
             <p className={`mt-1 text-2xl font-bold tabular-nums ${
               (status?.checksum_errors ?? 0) > 0
@@ -239,7 +249,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
         <section className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              Consumer Control
+              {t('controls.title')}
             </h2>
             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium
               ${isRunning

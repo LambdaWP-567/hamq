@@ -1,15 +1,3 @@
-/**
- * Stats.tsx — Real-time statistics charts for the HAMq Consumer.
- *
- * Displays:
- *  - Messages per second receive rate (line chart)
- *  - Gaps detected (derived from missing sequences via lag_estimate proxy)
- *  - Latency histogram placeholder with receive rate distribution
- *  - Total received counter and consumer lag
- *
- * All data arrives via rateHistory (populated by WebSocket in Dashboard).
- */
-
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
@@ -18,17 +6,15 @@ import {
   Line,
   BarChart,
   Bar,
+  LabelList,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
 } from 'recharts'
 import type { ConsumerStatus, ReceiveRatePoint } from '../types'
+import InfoTooltip from './InfoTooltip'
 
-// ---------------------------------------------------------------------------
-// Latency bucket helper — bucket the recent per-second rates into a histogram
-// ---------------------------------------------------------------------------
 interface LatencyBucket {
   range: string
   count: number
@@ -50,9 +36,6 @@ function buildHistogram(history: ReceiveRatePoint[]): LatencyBucket[] {
   return Object.entries(buckets).map(([range, count]) => ({ range, count }))
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
 interface StatsProps {
   rateHistory: ReceiveRatePoint[]
   status: ConsumerStatus | null
@@ -66,7 +49,7 @@ export default function Stats({ rateHistory, status }: StatsProps) {
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 space-y-5">
       {/* Header */}
       <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-        Statistics
+        {t('stats.title')}
       </h2>
 
       {/* Counter tiles */}
@@ -83,12 +66,13 @@ export default function Stats({ rateHistory, status }: StatsProps) {
           (status?.lag_estimate ?? 0) > 1000
             ? 'bg-yellow-50 dark:bg-yellow-900/20'
             : 'bg-gray-50 dark:bg-gray-700/50'}`}>
-          <p className={`text-xs font-medium uppercase tracking-wide ${
+          <p className={`text-xs font-medium uppercase tracking-wide flex items-center ${
             (status?.lag_estimate ?? 0) > 1000
               ? 'text-yellow-700 dark:text-yellow-400'
               : 'text-gray-600 dark:text-gray-400'
           }`}>
             {t('status.lag')}
+            <InfoTooltip text={`${t('tooltips.lag')} (${t('tooltips.lag_unit')})`} />
           </p>
           <p className={`mt-1 text-2xl font-bold tabular-nums ${
             (status?.lag_estimate ?? 0) > 1000
@@ -96,6 +80,9 @@ export default function Stats({ rateHistory, status }: StatsProps) {
               : 'text-gray-800 dark:text-gray-200'
           }`}>
             {(status?.lag_estimate ?? 0).toLocaleString()}
+            <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+              {t('tooltips.lag_unit')}
+            </span>
           </p>
         </div>
       </div>
@@ -132,31 +119,53 @@ export default function Stats({ rateHistory, status }: StatsProps) {
         </ResponsiveContainer>
       </div>
 
-      {/* Rate histogram — approximates latency distribution */}
+      {/* Rate histogram */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-          Rate Distribution (msg/s buckets)
+          {t('stats.rate_dist')}
         </p>
-        <ResponsiveContainer width="100%" height={120}>
-          <BarChart data={histogram} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="range" tick={{ fontSize: 10 }} stroke="#9ca3af" />
-            <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" allowDecimals={false} />
-            <Tooltip contentStyle={{ fontSize: '12px' }} />
-            <Bar
-              dataKey="count"
-              name="Samples"
-              fill="#3b82f6"
-              radius={[2, 2, 0, 0]}
-              isAnimationActive={false}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="relative">
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={histogram} margin={{ top: 14, right: 8, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="range" tick={{ fontSize: 10 }} stroke="#9ca3af" />
+              <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ fontSize: '12px' }}
+                formatter={(value: number) => [value, t('stats.samples')]}
+              />
+              <Bar
+                dataKey="count"
+                name={t('stats.samples')}
+                fill="#3b82f6"
+                radius={[2, 2, 0, 0]}
+                isAnimationActive={false}
+                minPointSize={2}
+              >
+                <LabelList
+                  dataKey="count"
+                  position="top"
+                  style={{ fontSize: '10px', fill: '#6b7280' }}
+                />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          {rateHistory.length === 0 && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <span className="text-xs text-gray-400 dark:text-gray-500 bg-white/80 dark:bg-gray-800/80 px-2 py-1 rounded">
+                {t('stats.no_data')}
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Checksum errors indicator */}
+      {/* Checksum errors */}
       <div className="flex items-center justify-between text-sm">
-        <span className="text-gray-600 dark:text-gray-400">{t('status.checksum_errors')}</span>
+        <span className="text-gray-600 dark:text-gray-400 flex items-center">
+          {t('status.checksum_errors')}
+          <InfoTooltip text={t('tooltips.checksum')} />
+        </span>
         <span className={`font-mono font-semibold tabular-nums ${
           (status?.checksum_errors ?? 0) > 0
             ? 'text-red-600 dark:text-red-400'
