@@ -12,7 +12,7 @@ import React, { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { Message } from '../types'
 
-const MAX_DISPLAY = 100
+const MAX_DISPLAY = 50
 
 // Determine row colour class based on whether the message appears buffered
 function rowClass(message: Message): string {
@@ -94,7 +94,7 @@ export default function MessageLog({ messages }: MessageLogProps) {
         ref={containerRef}
         onScroll={handleScroll}
         className="overflow-y-auto"
-        style={{ maxHeight: '420px', contain: 'strict' }}
+        style={{ maxHeight: '420px' }}
         aria-label="Message log"
         role="log"
         aria-live="polite"

@@ -209,22 +209,16 @@ async def update_frequency(
 
 @router.get(
     "/api/messages/recent",
-    summary="Get the last 100 generated messages",
+    summary="Get the last N generated messages",
     tags=["producer"],
 )
 async def get_recent_messages(
     request: Request,
     _: str = Depends(get_current_user),
+    limit: int = 50,
 ) -> List[Dict[str, Any]]:
-    """
-    Return up to 100 most recently generated messages from the in-memory
-    ring buffer.
-
-    This endpoint is purely informational — messages here have already been
-    submitted to the Kafka producer layer.
-    """
     producer_service = request.app.state.producer_service
-    return producer_service.get_recent_messages()
+    return producer_service.get_recent_messages()[-limit:]
 
 
 # ---------------------------------------------------------------------------

@@ -30,7 +30,7 @@ from app.models import Message, MessagePayload, ProducerStatus
 logger = logging.getLogger(__name__)
 
 # In-memory ring buffer capacity for recent messages
-_RECENT_MESSAGES_CAPACITY = 100
+_RECENT_MESSAGES_CAPACITY = 50
 
 
 class ProducerService:

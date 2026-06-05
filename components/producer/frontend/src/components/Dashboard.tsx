@@ -72,7 +72,7 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
     }
 
     if (payload.recent_messages) {
-      setMessages(payload.recent_messages.slice(-100))
+      setMessages(payload.recent_messages.slice(-50))
     }
   }, [applyStatus])
 
@@ -97,12 +97,12 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
         .then((res) => { if (!cancelled) applyStatus(res.data) })
         .catch(() => {})
       api
-        .get<Message[]>('/api/messages/recent')
-        .then((res) => { if (!cancelled) setMessages(res.data.slice(-100)) })
+        .get<Message[]>('/api/messages/recent?limit=50')
+        .then((res) => { if (!cancelled) setMessages(res.data.slice(-50)) })
         .catch(() => {})
     }
     poll()
-    const id = setInterval(poll, 2000)
+    const id = setInterval(poll, 5000)
     return () => { cancelled = true; clearInterval(id) }
   }, [api, applyStatus])
 
