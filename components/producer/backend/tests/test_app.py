@@ -361,7 +361,7 @@ async def test_checksum_is_deterministic() -> None:
 @pytest.mark.asyncio
 async def test_frequency_update(client: AsyncClient, test_app) -> None:
     """
-    PUT /api/frequency must call set_frequency() and return the new value.
+    PUT /api/frequency must call set_frequency() and return ProducerStatus.
     """
     token = await _get_token(client)
 
@@ -372,7 +372,10 @@ async def test_frequency_update(client: AsyncClient, test_app) -> None:
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["frequency_hz"] == 42.0
+    # Now returns ProducerStatus, not the minimal {"frequency_hz": ...}
+    assert "running" in body
+    assert "frequency_hz" in body
+    assert "buffered_count" in body
 
     # Verify that set_frequency was called with the correct value
     test_app.state.producer_service.set_frequency.assert_called_once_with(42.0)
@@ -413,3 +416,220 @@ async def test_login_wrong_password(client: AsyncClient) -> None:
         json={"username": settings.AUTH_USERNAME, "password": "wrong-password"},
     )
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Test 11: POST /api/start returns ProducerStatus
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_returns_producer_status(client: AsyncClient, test_app) -> None:
+    """POST /api/start must return a ProducerStatus JSON object, not {success: true}."""
+    test_app.state.producer_service = _make_mock_producer_service(running=True)
+    token = await _get_token(client)
+
+    response = await client.post(
+        "/api/start",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    # Must be a ProducerStatus, not {"success": true}
+    assert "running" in body
+    assert "frequency_hz" in body
+    assert "sequence_counter" in body
+    assert "buffered_count" in body
+    assert "sent_count" in body
+    assert "kafka_connected" in body
+    assert "success" not in body
+
+
+# ---------------------------------------------------------------------------
+# Test 12: POST /api/stop returns ProducerStatus
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_stop_returns_producer_status(client: AsyncClient, test_app) -> None:
+    """POST /api/stop must return a ProducerStatus JSON object, not {success: true}."""
+    test_app.state.producer_service = _make_mock_producer_service(running=False)
+    token = await _get_token(client)
+
+    response = await client.post(
+        "/api/stop",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "running" in body
+    assert "frequency_hz" in body
+    assert "success" not in body
+
+
+# ---------------------------------------------------------------------------
+# Test 13: PUT /api/frequency returns ProducerStatus with updated value
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_frequency_update_returns_producer_status(
+    client: AsyncClient, test_app
+) -> None:
+    """PUT /api/frequency must return ProducerStatus (not {frequency_hz: ...})."""
+    test_app.state.producer_service = _make_mock_producer_service(frequency_hz=42.0)
+    token = await _get_token(client)
+
+    response = await client.put(
+        "/api/frequency",
+        json={"frequency_hz": 42.0},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "running" in body
+    assert "frequency_hz" in body
+    assert "sequence_counter" in body
+    # Must NOT be the old minimal response shape
+    assert "kafka_connected" in body
+
+
+# ---------------------------------------------------------------------------
+# Test 14: POST /api/start is idempotent (already running)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_when_already_running_is_idempotent(
+    client: AsyncClient, test_app
+) -> None:
+    """POST /api/start when producer is already running must still return 200."""
+    test_app.state.producer_service = _make_mock_producer_service(running=True)
+    token = await _get_token(client)
+
+    response = await client.post(
+        "/api/start",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "running" in body
+
+
+# ---------------------------------------------------------------------------
+# Test 15: PUT /api/frequency lower bound rejected
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_frequency_below_minimum_rejected(client: AsyncClient) -> None:
+    """PUT /api/frequency with frequency_hz < 1 must return HTTP 422."""
+    token = await _get_token(client)
+
+    response = await client.put(
+        "/api/frequency",
+        json={"frequency_hz": 0.5},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# Test 16: GET /api/messages/recent returns a list
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_recent_messages_returns_list(client: AsyncClient) -> None:
+    """GET /api/messages/recent must return an array (empty or populated)."""
+    token = await _get_token(client)
+
+    response = await client.get(
+        "/api/messages/recent",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+
+
+# ---------------------------------------------------------------------------
+# Test 17: GET /api/messages/recent requires auth
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_recent_messages_requires_auth(client: AsyncClient) -> None:
+    """GET /api/messages/recent without token must return HTTP 401."""
+    response = await client.get("/api/messages/recent")
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Test 18: POST /api/start requires auth
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_start_requires_auth(client: AsyncClient) -> None:
+    """POST /api/start without a Bearer token must return HTTP 401."""
+    response = await client.post("/api/start")
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Test 19: POST /api/stop requires auth
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_stop_requires_auth(client: AsyncClient) -> None:
+    """POST /api/stop without a Bearer token must return HTTP 401."""
+    response = await client.post("/api/stop")
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Test 20: WebSocket rejected without token (sync test — uses Starlette client)
+# ---------------------------------------------------------------------------
+
+
+def test_websocket_requires_token(test_app) -> None:
+    """WebSocket /ws without a token query param must not send data."""
+    from starlette.testclient import TestClient
+    from starlette.websockets import WebSocketDisconnect
+
+    # Do NOT use TestClient as a context manager — that starts the real lifespan
+    # which tries to open a SQLite file. The test_app fixture already injects mocks.
+    c = TestClient(test_app)
+    rejected = False
+    try:
+        with c.websocket_connect("/ws") as ws:
+            ws.receive_json()
+    except (WebSocketDisconnect, Exception):
+        rejected = True
+    assert rejected, "Expected connection to be rejected without token"
+
+
+# ---------------------------------------------------------------------------
+# Test 21: WebSocket sends structured payload with status + recent_messages
+# ---------------------------------------------------------------------------
+
+
+def test_websocket_sends_structured_payload(test_app) -> None:
+    """WebSocket /ws must send {status: {...}, recent_messages: [...]} frames."""
+    from starlette.testclient import TestClient
+    from app.auth import create_access_token
+
+    token = create_access_token({"sub": "admin"})
+
+    # Do NOT use TestClient as a context manager to avoid triggering the real lifespan
+    c = TestClient(test_app)
+    with c.websocket_connect(f"/ws?token={token}") as ws:
+        payload = ws.receive_json()
+        assert "status" in payload, "WS payload missing 'status' key"
+        assert "recent_messages" in payload, "WS payload missing 'recent_messages' key"
+        assert isinstance(payload["recent_messages"], list)
+        s = payload["status"]
+        assert "running" in s
+        assert "frequency_hz" in s
+        assert "buffered_count" in s
