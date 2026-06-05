@@ -109,7 +109,7 @@ jobs:
             -e PRODUCER_FREQUENCY_HZ="10" \
             -e PRODUCER_AUTOSTART="false" \
             -e AUTH_USERNAME="admin" \
-            -e AUTH_PASSWORD_HASH='$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry' \
+            -e AUTH_PASSWORD_HASH='$2b$12$SHeIYmhukN6bQiD34QFFGOG3hw49eXplUSEqjwCzgJKQCphfNl1mi' \
             -e AUTH_SECRET_KEY="integration-test-secret-32-chars!" \
             hamq-producer:test
 
@@ -124,7 +124,7 @@ jobs:
             -e STORAGE_DB_PATH="/tmp/consumer.db" \
             -e CONSUMER_GROUP_ID="integration-consumer-group" \
             -e AUTH_USERNAME="admin" \
-            -e AUTH_PASSWORD_HASH='$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGhYp.dKjQFhYVWMxJYBv9L2.Ry' \
+            -e AUTH_PASSWORD_HASH='$2b$12$SHeIYmhukN6bQiD34QFFGOG3hw49eXplUSEqjwCzgJKQCphfNl1mi' \
             -e AUTH_SECRET_KEY="integration-test-secret-32-chars!" \
             hamq-consumer:test
 
@@ -149,6 +149,20 @@ jobs:
             -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
           echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
 
+      - name: Obtain auth token for consumer
+        id: consumer_token
+        run: |
+          TOKEN=$(curl -sf -X POST http://localhost:18001/api/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
+          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
+
+      - name: Start consumer Kafka loop
+        run: |
+          curl -sf -X POST http://localhost:18001/api/start \
+            -H "Authorization: Bearer ${{ steps.consumer_token.outputs.token }}" \
+            -H "Content-Type: application/json"
+
       - name: Start producing at 10 msg/s for 15 seconds
         run: |
           # Start the producer (v1 alias route)
@@ -172,14 +186,6 @@ jobs:
 
           # Allow consumer to finish draining
           sleep 5
-
-      - name: Obtain auth token for consumer
-        id: consumer_token
-        run: |
-          TOKEN=$(curl -sf -X POST http://localhost:18001/api/auth/login \
-            -H "Content-Type: application/json" \
-            -d '{"username":"admin","password":"admin"}' | jq -r .access_token)
-          echo "token=${TOKEN}" >> "$GITHUB_OUTPUT"
 
       - name: Verify message counts (sent ≈ received, no loss > 1%)
         run: |
