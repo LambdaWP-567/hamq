@@ -1,0 +1,69 @@
+name: Deploy to Test Cluster
+
+# Runs on the self-hosted runner on cubecluster, which has direct access to
+# the libvirt VM cluster at 192.168.122.0/24.
+#
+# Trigger manually or automatically after build-all succeeds on main.
+# Requires secrets:
+#   GHCR_TOKEN    — GitHub PAT with read:packages scope
+#   KUBECONFIG_B64 — base64-encoded infra/kubeconfig (never commit the raw file)
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Build All Components"]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  deploy:
+    # Only deploy when triggered manually, or when the upstream build succeeded.
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    runs-on: [self-hosted, cubecluster]
+
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Write kubeconfig
+        run: |
+          mkdir -p infra
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > infra/kubeconfig
+          chmod 600 infra/kubeconfig
+
+      - name: Deploy HAMq
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: bash infra/deploy.sh 2>&1 | tee /tmp/deploy.log
+
+      - name: Upload deploy log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-log
+          path: /tmp/deploy.log
+          retention-days: 7
+
+      - name: Smoke test UI endpoints
+        run: |
+          for host in producer consumer arbiter controller; do
+            echo -n "Checking http://${host}.hamq.test ... "
+            if curl -sf --max-time 10 "http://${host}.hamq.test" -o /dev/null; then
+              echo "OK"
+            else
+              echo "FAILED"
+              exit 1
+            fi
+          done
+
+      - name: Cleanup kubeconfig
+        if: always()
+        run: rm -f infra/kubeconfig
