@@ -20,12 +20,16 @@
     "unknown": "Unbekannt"
   },
   "controls": {
+    "title": "Abgleich-Steuerung",
     "reconcile_now": "Jetzt prüfen",
     "reconciling": "Prüfe...",
     "start": "Automatisch starten",
     "stop": "Stoppen",
     "starting": "Starte...",
-    "stopping": "Stoppe..."
+    "stopping": "Stoppe...",
+    "interval_label": "Prüfintervall",
+    "lookback_label": "Rückblickfenster (Sekunden)",
+    "monitoring_label": "Überwacht"
   },
   "audit": {
     "title": "Prüfprotokoll",
@@ -41,21 +45,28 @@
     "expand": "Erweitern",
     "collapse": "Einklappen",
     "missing_sequences": "Fehlende Sequenznummern",
-    "no_missing": "Keine fehlenden Sequenzen"
+    "no_missing": "Keine fehlenden Sequenzen",
+    "refresh": "Aktualisieren",
+    "export_csv": "CSV exportieren",
+    "more": "weitere"
   },
   "chart": {
     "loss_rate_title": "Verlustrate über Zeit",
-    "no_data": "Keine Daten vorhanden",
-    "loss_rate_label": "Verlustrate (%)"
+    "no_data": "Keine Daten — Abgleich starten, um Daten zu sammeln",
+    "loss_rate_label": "Verlustrate (%)",
+    "sent_vs_received": "Gesendet vs Empfangen",
+    "success_rate": "Erfolgsrate",
+    "avg_across_audits": "Durchschnitt aller Prüfungen"
   },
   "report": {
     "title": "Aktueller Bericht",
-    "no_report": "Noch kein Bericht erstellt",
+    "no_report": "Noch kein Bericht — klicke auf „Jetzt prüfen" oder warte auf den Auto-Zyklus",
     "no_loss": "Kein Nachrichtenverlust",
     "missing_sequences": "Fehlende Sequenznummern",
     "total_sent": "Gesamt gesendet",
     "total_received": "Gesamt empfangen",
     "total_missing": "Gesamt fehlend",
+    "success_rate": "Erfolgsrate",
     "duration": "Dauer",
     "producers": "Produzenten",
     "ms": "ms"
@@ -68,6 +79,10 @@
     "worst_loss_rate": "Höchste Verlustrate",
     "producers_tracked": "Verfolgte Produzenten",
     "no_data": "Keine Statistiken verfügbar"
+  },
+  "about": {
+    "title": "Wie der Schiedsrichter funktioniert",
+    "body": "Der Schiedsrichter fragt regelmäßig die Produzenten- und Konsumenten-APIs ab, um gesendete mit empfangenen Nachrichten zu vergleichen. Er holt die neuesten Sequenznummern vom Produzenten (Sendeliste) und fragt den Konsumenten, welche Sequenzen in seiner Datenbank fehlen. Jede Lücke wird als Prüfeintrag gespeichert. Das Prüfintervall steuert, wie oft dieser Vergleich stattfindet (Standard: alle 10 Sekunden). Ein hoher Consumer Lag oder fehlende Sequenzen deuten auf Zustellprobleme hin — prüfe zuerst die Kafka-Verbindung und den Konsumenten-Durchsatz."
   },
   "login": {
     "title": "Anmelden",

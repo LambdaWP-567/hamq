@@ -202,10 +202,10 @@ export default function GapReport({ token }: GapReportProps) {
         </h3>
         <div className="flex items-center gap-2">
           <button onClick={fetchAudits} className="btn-secondary text-xs px-2.5 py-1.5">
-            Refresh
+            {t('audit.refresh')}
           </button>
           <button onClick={handleExportCsv} disabled={audits.length === 0} className="btn-secondary text-xs px-2.5 py-1.5">
-            Export CSV
+            {t('audit.export_csv')}
           </button>
         </div>
       </div>
@@ -296,7 +296,7 @@ export default function GapReport({ token }: GapReportProps) {
                                   {expandedData.missing_sequences.length === 0
                                     ? t('audit.no_missing')
                                     : expandedData.missing_sequences.slice(0, 200).join(', ')
-                                      + (expandedData.missing_sequences.length > 200 ? ` … +${expandedData.missing_sequences.length - 200} more` : '')
+                                      + (expandedData.missing_sequences.length > 200 ? ` … +${expandedData.missing_sequences.length - 200} ${t('audit.more')}` : '')
                                   }
                                 </p>
                               </div>

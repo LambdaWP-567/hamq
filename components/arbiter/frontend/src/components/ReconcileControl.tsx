@@ -80,7 +80,7 @@ export default function ReconcileControl({
   return (
     <div className="card space-y-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-gray-700">Reconcile Control</h3>
+        <h3 className="text-sm font-semibold text-gray-700">{t('controls.title')}</h3>
         {/* Status dot */}
         <span className={`flex items-center gap-1.5 text-xs font-medium
           ${isRunning ? 'text-green-600' : 'text-gray-500'}`}>
@@ -100,7 +100,7 @@ export default function ReconcileControl({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label className="text-xs font-medium text-gray-600" htmlFor="interval-slider">
-            Reconcile Interval
+            {t('controls.interval_label')}
           </label>
           <span className="text-xs font-semibold text-brand-600 tabular-nums">
             {intervalValue}s
@@ -127,7 +127,7 @@ export default function ReconcileControl({
       {/* Lookback window */}
       <div className="space-y-1.5">
         <label className="text-xs font-medium text-gray-600" htmlFor="lookback-input">
-          Lookback Window (seconds)
+          {t('controls.lookback_label')}
         </label>
         <input
           id="lookback-input"
@@ -145,7 +145,7 @@ export default function ReconcileControl({
       {/* Producer URLs (read-only info) */}
       {status && (
         <div className="rounded-lg bg-gray-50 border border-gray-200 px-3 py-2">
-          <p className="text-xs font-medium text-gray-500 mb-1">Monitoring</p>
+          <p className="text-xs font-medium text-gray-500 mb-1">{t('controls.monitoring_label')}</p>
           <p className="text-xs text-gray-700 font-mono truncate">
             {status.producers_monitored} producer{status.producers_monitored !== 1 ? 's' : ''}
           </p>

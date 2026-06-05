@@ -169,7 +169,7 @@ export default function Stats({ token, stats }: StatsProps) {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Messages sent vs received */}
           <div className="card lg:col-span-2">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Messages Sent vs Received</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">{t('chart.sent_vs_received')}</h3>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={timeSeriesData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -191,7 +191,7 @@ export default function Stats({ token, stats }: StatsProps) {
                   stroke="#3b82f6"
                   strokeWidth={2}
                   dot={false}
-                  name="Sent"
+                  name={t('report.total_sent')}
                 />
                 <Line
                   type="monotone"
@@ -199,7 +199,7 @@ export default function Stats({ token, stats }: StatsProps) {
                   stroke="#10b981"
                   strokeWidth={2}
                   dot={false}
-                  name="Received"
+                  name={t('report.total_received')}
                 />
               </LineChart>
             </ResponsiveContainer>
@@ -207,7 +207,7 @@ export default function Stats({ token, stats }: StatsProps) {
 
           {/* Success Rate Gauge */}
           <div className="card flex flex-col items-center justify-center">
-            <h3 className="text-sm font-semibold text-gray-700 mb-2">Success Rate</h3>
+            <h3 className="text-sm font-semibold text-gray-700 mb-2">{t('chart.success_rate')}</h3>
             <div className="relative">
               <ResponsiveContainer width={160} height={160}>
                 <RadialBarChart
@@ -236,7 +236,7 @@ export default function Stats({ token, stats }: StatsProps) {
                 </span>
               </div>
             </div>
-            <p className="text-xs text-gray-400 mt-1">avg across all audits</p>
+            <p className="text-xs text-gray-400 mt-1">{t('chart.avg_across_audits')}</p>
           </div>
 
           {/* Loss rate over time */}

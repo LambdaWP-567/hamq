@@ -438,7 +438,6 @@ async def stop_reconciler(
 @router.websocket("/ws")
 async def websocket_endpoint(
     websocket: WebSocket,
-    request: Request,
 ):
     """
     WebSocket endpoint for real-time status streaming.
@@ -466,8 +465,8 @@ async def websocket_endpoint(
             return
 
     await websocket.accept()
-    reconciler: Reconciler = _get_reconciler(request)
-    store: AuditStore = _get_store(request)
+    reconciler: Reconciler = websocket.app.state.reconciler
+    store: AuditStore = websocket.app.state.audit_store
 
     last_report_id: Optional[str] = None
 

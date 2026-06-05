@@ -20,12 +20,16 @@
     "unknown": "Unknown"
   },
   "controls": {
+    "title": "Reconcile Control",
     "reconcile_now": "Reconcile Now",
     "reconciling": "Reconciling...",
     "start": "Start Auto-Reconcile",
     "stop": "Stop",
     "starting": "Starting...",
-    "stopping": "Stopping..."
+    "stopping": "Stopping...",
+    "interval_label": "Reconcile Interval",
+    "lookback_label": "Lookback Window (seconds)",
+    "monitoring_label": "Monitoring"
   },
   "audit": {
     "title": "Audit Log",
@@ -41,21 +45,28 @@
     "expand": "Expand",
     "collapse": "Collapse",
     "missing_sequences": "Missing Sequence Numbers",
-    "no_missing": "No missing sequences"
+    "no_missing": "No missing sequences",
+    "refresh": "Refresh",
+    "export_csv": "Export CSV",
+    "more": "more"
   },
   "chart": {
     "loss_rate_title": "Loss Rate Over Time",
-    "no_data": "No data available",
-    "loss_rate_label": "Loss Rate (%)"
+    "no_data": "No data available — start reconciliation to populate",
+    "loss_rate_label": "Loss Rate (%)",
+    "sent_vs_received": "Messages Sent vs Received",
+    "success_rate": "Success Rate",
+    "avg_across_audits": "avg across all audits"
   },
   "report": {
     "title": "Current Report",
-    "no_report": "No report generated yet",
+    "no_report": "No report yet — click Reconcile Now or wait for the auto cycle",
     "no_loss": "No message loss detected",
     "missing_sequences": "Missing Sequence Numbers",
     "total_sent": "Total Sent",
     "total_received": "Total Received",
     "total_missing": "Total Missing",
+    "success_rate": "Success Rate",
     "duration": "Duration",
     "producers": "Producers",
     "ms": "ms"
@@ -68,6 +79,10 @@
     "worst_loss_rate": "Highest Loss Rate",
     "producers_tracked": "Producers Tracked",
     "no_data": "No statistics available"
+  },
+  "about": {
+    "title": "How the Arbiter Works",
+    "body": "The Arbiter periodically queries the Producer and Consumer APIs to compare which messages were sent versus which were received. It fetches the most recent message sequences from the Producer (sent list) and asks the Consumer which sequences are missing from its database. Any gap is recorded as an audit entry. The reconcile interval controls how often this comparison runs (default: every 10 seconds). High Consumer Lag or missing sequences indicate delivery problems — check Kafka connectivity and consumer throughput first."
   },
   "login": {
     "title": "Sign In",

@@ -245,7 +245,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
             variant={totalMissing === 0 ? 'success' : totalMissing < 10 ? 'warning' : 'danger'}
           />
           <SummaryCard
-            label="Success Rate"
+            label={t('report.success_rate')}
             value={successRate === '—' ? '—' : `${successRate}%`}
             subtext={`${t('status.total_audits')}: ${status?.total_audits ?? 0}`}
             variant={
@@ -344,6 +344,12 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
           {activeTab === 'gaps' && <GapReport token={token} />}
           {activeTab === 'stats' && <Stats token={token} stats={stats} />}
         </div>
+
+        {/* How it works */}
+        <section className="card bg-blue-50 border-blue-100">
+          <h3 className="text-sm font-semibold text-blue-800 mb-2">{t('about.title')}</h3>
+          <p className="text-sm text-blue-700 leading-relaxed">{t('about.body')}</p>
+        </section>
       </main>
     </div>
   )
