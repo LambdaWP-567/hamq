@@ -105,7 +105,7 @@ export default function ProducerControl({
         setPendingFrequency(true)
         try {
           const hz = sliderToHz(val)
-          const res = await api.post<ProducerStatus>(
+          const res = await api.put<ProducerStatus>(
             '/api/v1/producer/frequency',
             { frequency_hz: hz }
           )
@@ -192,7 +192,7 @@ export default function ProducerControl({
       </button>
 
       {/* Sequence counter */}
-      {status && (
+      {status?.sequence_counter != null && (
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-500 dark:text-gray-400">{t('status.sequence')}</span>
           <span className="font-mono font-medium text-gray-800 dark:text-gray-200">

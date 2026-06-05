@@ -30,7 +30,7 @@ interface DashboardProps {
 export default function Dashboard({ token, api, onLogout }: DashboardProps) {
   const { t } = useTranslation()
 
-  // Live producer status received from WebSocket
+  // Live producer status received from WebSocket or REST poll
   const [status, setStatus] = useState<ProducerStatus | null>(null)
   // Rolling window of recent messages
   const [messages, setMessages] = useState<Message[]>([])
@@ -38,6 +38,24 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
   const [rateHistory, setRateHistory] = useState<RateDataPoint[]>([])
   // Whether the WebSocket connection is alive
   const [wsConnected, setWsConnected] = useState(false)
+
+  // ------------------------------------------------------------------
+  // Shared status update — used by both WS and REST poll
+  // ------------------------------------------------------------------
+  const applyStatus = useCallback((s: ProducerStatus) => {
+    setStatus(s)
+    setRateHistory((prev) => {
+      const point: RateDataPoint = {
+        time: Date.now(),
+        sent: s.sent_count,
+        buffered: s.buffered_count,
+      }
+      const next = [...prev, point]
+      return next.length > MAX_RATE_POINTS
+        ? next.slice(next.length - MAX_RATE_POINTS)
+        : next
+    })
+  }, [])
 
   // ------------------------------------------------------------------
   // WebSocket handler
@@ -50,27 +68,13 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
     }
 
     if (payload.status) {
-      const s = payload.status
-      setStatus(s)
-
-      // Append a new rate data point
-      setRateHistory((prev) => {
-        const point: RateDataPoint = {
-          time: Date.now(),
-          sent: s.sent_count,
-          buffered: s.buffered_count,
-        }
-        const next = [...prev, point]
-        return next.length > MAX_RATE_POINTS
-          ? next.slice(next.length - MAX_RATE_POINTS)
-          : next
-      })
+      applyStatus(payload.status)
     }
 
     if (payload.recent_messages) {
       setMessages(payload.recent_messages.slice(-100))
     }
-  }, [])
+  }, [applyStatus])
 
   const handleConnectionChange = useCallback((connected: boolean) => {
     setWsConnected(connected)
@@ -83,20 +87,24 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
   })
 
   // ------------------------------------------------------------------
-  // Poll status every 2 s (WebSocket pushes faster updates on top)
+  // Poll status + messages every 2 s as fallback when WS is unavailable
   // ------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false
-    const fetchStatus = () => {
+    const poll = () => {
       api
         .get<ProducerStatus>('/api/v1/producer/status')
-        .then((res) => { if (!cancelled) setStatus(res.data) })
+        .then((res) => { if (!cancelled) applyStatus(res.data) })
+        .catch(() => {})
+      api
+        .get<Message[]>('/api/messages/recent')
+        .then((res) => { if (!cancelled) setMessages(res.data.slice(-100)) })
         .catch(() => {})
     }
-    fetchStatus()
-    const id = setInterval(fetchStatus, 2000)
+    poll()
+    const id = setInterval(poll, 2000)
     return () => { cancelled = true; clearInterval(id) }
-  }, [api])
+  }, [api, applyStatus])
 
   // ------------------------------------------------------------------
   // Derived status values

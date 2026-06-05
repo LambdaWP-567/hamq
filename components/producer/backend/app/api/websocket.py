@@ -103,8 +103,11 @@ async def websocket_status_handler(
             # Also update the rate metric here so it's always driven at 1 Hz
             producer_service.update_rate_metric()
 
-            # Serialise to JSON and broadcast
-            payload = json.dumps(status.model_dump())
+            # Wrap status + recent messages so the frontend can handle both
+            payload = json.dumps({
+                "status": status.model_dump(),
+                "recent_messages": producer_service.get_recent_messages(),
+            })
             try:
                 await websocket.send_text(payload)
             except Exception:

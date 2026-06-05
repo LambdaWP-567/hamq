@@ -183,7 +183,7 @@ export default function Stats({ rateHistory, status }: StatsProps) {
             {status?.kafka_connected ? t('status.connected') : t('status.disconnected')}
           </strong>
         </span>
-        {status && (
+        {status?.frequency_hz != null && (
           <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 font-mono tabular-nums">
             {t('status.frequency')}: {status.frequency_hz.toFixed(1)} Hz
           </span>

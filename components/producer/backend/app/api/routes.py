@@ -135,61 +135,67 @@ async def get_status(
 
 @router.post(
     "/api/start",
+    response_model=ProducerStatus,
     summary="Start the message generation loop",
     tags=["producer"],
 )
-@router.post("/api/v1/producer/start", include_in_schema=False)
+@router.post("/api/v1/producer/start", response_model=ProducerStatus, include_in_schema=False)
 async def start_producer(
     request: Request,
     _: str = Depends(get_current_user),
-) -> Dict[str, bool]:
+) -> ProducerStatus:
     """
     Begin producing messages at the currently configured frequency.
 
     Idempotent — calling start when already running is safe.
+    Returns the current ProducerStatus after the operation.
     """
     producer_service = request.app.state.producer_service
     await producer_service.start_producing()
-    return {"success": True}
+    return await producer_service.async_get_status()
 
 
 @router.post(
     "/api/stop",
+    response_model=ProducerStatus,
     summary="Stop the message generation loop",
     tags=["producer"],
 )
-@router.post("/api/v1/producer/stop", include_in_schema=False)
+@router.post("/api/v1/producer/stop", response_model=ProducerStatus, include_in_schema=False)
 async def stop_producer(
     request: Request,
     _: str = Depends(get_current_user),
-) -> Dict[str, bool]:
+) -> ProducerStatus:
     """
     Halt message generation.
 
     Messages already in the local buffer continue to be delivered to Kafka
     in the background even after the producer is stopped.
+    Returns the current ProducerStatus after the operation.
     """
     producer_service = request.app.state.producer_service
     await producer_service.stop_producing()
-    return {"success": True}
+    return await producer_service.async_get_status()
 
 
 @router.put(
     "/api/frequency",
+    response_model=ProducerStatus,
     summary="Update message generation frequency",
     tags=["producer"],
 )
-@router.put("/api/v1/producer/frequency", include_in_schema=False)
+@router.put("/api/v1/producer/frequency", response_model=ProducerStatus, include_in_schema=False)
 async def update_frequency(
     body: FrequencyUpdate,
     request: Request,
     _: str = Depends(get_current_user),
-) -> Dict[str, float]:
+) -> ProducerStatus:
     """
     Change the message generation rate to *frequency_hz* messages per second.
 
     Valid range: 1–1000 Hz.  The new rate takes effect on the very next loop
     iteration without restarting the producer.
+    Returns the current ProducerStatus reflecting the new frequency.
     """
     if not (1.0 <= body.frequency_hz <= 1000.0):
         raise HTTPException(
@@ -198,7 +204,7 @@ async def update_frequency(
         )
     producer_service = request.app.state.producer_service
     await producer_service.set_frequency(body.frequency_hz)
-    return {"frequency_hz": body.frequency_hz}
+    return await producer_service.async_get_status()
 
 
 @router.get(
