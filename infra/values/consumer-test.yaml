@@ -1,6 +1,6 @@
 image:
   frontend:
-    enabled: true
+    enabled: false
 kafka:
   bootstrapServers: "hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
   tlsEnabled: false
@@ -30,7 +30,7 @@ monitoring:
 certManager:
   enabled: false
 ingress:
-  enabled: true
+  enabled: false
   className: traefik
   host: consumer.hamq.test
 imagePullSecrets:

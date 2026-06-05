@@ -1,6 +1,6 @@
 image:
   frontend:
-    enabled: true
+    enabled: false
 persistence:
   storageClass: local-path
 resources:
@@ -23,7 +23,7 @@ monitoring:
   serviceMonitor:
     enabled: false
 ingress:
-  enabled: true
+  enabled: false
   className: traefik
   host: controller.hamq.test
 imagePullSecrets:
