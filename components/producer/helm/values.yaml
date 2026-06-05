@@ -10,12 +10,12 @@ image:
   backend:
     repository: ghcr.io/lambdawp-567/hamq-producer
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   frontend:
     enabled: true
     repository: ghcr.io/lambdawp-567/hamq-producer-ui
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
 # Number of producer pod replicas
 replicaCount: 1

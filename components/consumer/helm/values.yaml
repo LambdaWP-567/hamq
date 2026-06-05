@@ -10,12 +10,12 @@ image:
   backend:
     repository: ghcr.io/lambdawp-567/hamq-consumer
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   frontend:
     enabled: true
     repository: ghcr.io/lambdawp-567/hamq-consumer-ui
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
 # Number of consumer pod replicas
 replicaCount: 1

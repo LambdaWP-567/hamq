@@ -12,12 +12,12 @@ image:
   backend:
     repository: ghcr.io/lambdawp-567/hamq-controller
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   frontend:
     enabled: true
     repository: ghcr.io/lambdawp-567/hamq-controller-ui
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 
 # Number of controller replicas (single instance recommended — K8s operations
 # are non-idempotent and concurrent controllers may conflict).
