@@ -1,0 +1,36 @@
+{{- /*
+  Headless Service + manual Endpoints pointing to the host Cockpit instances.
+  Primary (cubecluster) is the main target — it runs cockpit-machines for KVM access.
+*/ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: cockpit
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: cockpit
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: https
+      port: {{ .Values.cockpitPort }}
+      protocol: TCP
+      targetPort: {{ .Values.cockpitPort }}
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: cockpit
+  namespace: {{ .Release.Namespace }}
+subsets:
+  - addresses:
+      - ip: {{ .Values.hosts.primary | quote }}
+      {{- range .Values.hosts.workers }}
+      - ip: {{ . | quote }}
+      {{- end }}
+    ports:
+      - name: https
+        port: {{ .Values.cockpitPort }}
+        protocol: TCP

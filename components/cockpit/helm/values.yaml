@@ -1,0 +1,12 @@
+# Host IPs where Cockpit is running (port 9090 HTTPS)
+hosts:
+  primary: "192.168.1.22"     # cubecluster (has cockpit-machines for KVM)
+  workers:
+    - "192.168.122.159"       # k3s-w1
+    - "192.168.122.18"        # k3s-w2
+
+cockpitPort: 9090
+
+ingress:
+  host: cockpit.hamq.test
+  className: traefik

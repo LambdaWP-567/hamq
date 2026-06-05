@@ -191,6 +191,15 @@ deploy_app hamq-consumer   consumer   "${VALUES_DIR}/consumer-test.yaml"
 deploy_app hamq-arbiter    arbiter    "${VALUES_DIR}/arbiter-test.yaml"
 deploy_app hamq-controller controller "${VALUES_DIR}/controller-test.yaml"
 
+# Cockpit has no pods — it's a reverse-proxy to the host Cockpit service
+step "7 — Deploy cockpit ingress"
+helm upgrade --install hamq-cockpit \
+  "${REPO_ROOT}/components/cockpit/helm" \
+  -n "$APP_NS" \
+  -f "${VALUES_DIR}/cockpit-test.yaml" \
+  --timeout 1m
+log "Cockpit ingress deployed"
+
 
 # =============================================================================
 # STEP 8 — Summary
@@ -211,6 +220,7 @@ log "  Producer   : http://producer.${TRAEFIK_IP}.nip.io"
 log "  Consumer   : http://consumer.${TRAEFIK_IP}.nip.io"
 log "  Arbiter    : http://arbiter.${TRAEFIK_IP}.nip.io"
 log "  Controller : http://controller.${TRAEFIK_IP}.nip.io"
+log "  Cockpit    : http://cockpit.${TRAEFIK_IP}.nip.io"
 log ""
 log "  Default credentials: admin / admin"
 log ""

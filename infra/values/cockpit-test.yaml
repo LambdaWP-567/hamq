@@ -1,0 +1,11 @@
+hosts:
+  primary: "192.168.1.22"
+  workers:
+    - "192.168.122.159"
+    - "192.168.122.18"
+
+cockpitPort: 9090
+
+ingress:
+  host: cockpit.hamq.test
+  className: traefik

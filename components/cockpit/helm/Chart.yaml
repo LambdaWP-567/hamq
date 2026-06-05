@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hamq-cockpit
+description: Cockpit reverse-proxy — exposes the host Cockpit service at cockpit.hamq.test
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
