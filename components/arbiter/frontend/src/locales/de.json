@@ -60,7 +60,7 @@
   },
   "report": {
     "title": "Aktueller Bericht",
-    "no_report": "Noch kein Bericht — klicke auf „Jetzt prüfen" oder warte auf den Auto-Zyklus",
+    "no_report": "Noch kein Bericht — klicke auf „Jetzt prüfen“ oder warte auf den Auto-Zyklus",
     "no_loss": "Kein Nachrichtenverlust",
     "missing_sequences": "Fehlende Sequenznummern",
     "total_sent": "Gesamt gesendet",
