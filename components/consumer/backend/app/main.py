@@ -25,6 +25,7 @@ from typing import AsyncIterator
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .api.routes import router, set_service
@@ -129,8 +130,10 @@ app.include_router(router)
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "static")
 
 if os.path.isdir(_STATIC_DIR):
-    # Mount the SPA at "/" — the API routes registered above take precedence
-    # over the catch-all because FastAPI resolves routes before static files.
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa_fallback(full_path: str) -> FileResponse:
+        return FileResponse(os.path.join(_STATIC_DIR, "index.html"))
+
     app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="static")
     logger.info("Serving React SPA from %s", _STATIC_DIR)
 else:

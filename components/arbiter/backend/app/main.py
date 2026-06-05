@@ -28,6 +28,7 @@ from pathlib import Path
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
@@ -151,6 +152,10 @@ app.include_router(router)
 # ---------------------------------------------------------------------------
 _static_dir = Path(__file__).parent.parent / "static"
 if _static_dir.exists():
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def _spa_fallback(full_path: str) -> FileResponse:
+        return FileResponse(str(_static_dir / "index.html"))
+
     app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")
 else:
     logging.getLogger(__name__).warning("No static/ directory — React SPA not served (%s)", _static_dir)

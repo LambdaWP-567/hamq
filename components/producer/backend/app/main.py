@@ -31,6 +31,7 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import router
@@ -162,9 +163,15 @@ def create_app() -> FastAPI:
     static_dir = Path(__file__).parent.parent / "static"
     if static_dir.exists():
         logger.info("Serving React frontend from %s", static_dir)
-        # Mount the React app at "/" — must come LAST so API routes take priority.
-        # The "html=True" flag enables SPA fallback (serves index.html for
-        # unknown paths so client-side routing works).
+        index = static_dir / "index.html"
+
+        # Catch-all for SPA client-side routes (e.g. /login, /dashboard).
+        # StaticFiles(html=True) only falls back to index.html for "/" and
+        # directory paths — explicit paths like /login get 404 without this.
+        @app.get("/{full_path:path}", include_in_schema=False)
+        async def _spa_fallback(full_path: str) -> FileResponse:
+            return FileResponse(str(index))
+
         app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
     else:
         logger.warning(
