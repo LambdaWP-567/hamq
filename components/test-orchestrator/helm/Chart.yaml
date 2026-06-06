@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hamq-test-orchestrator
+description: Counter integrity test orchestrator for the HAMq databus
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

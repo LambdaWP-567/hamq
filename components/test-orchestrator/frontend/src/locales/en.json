@@ -1,0 +1,56 @@
+{
+  "header": {
+    "title": "HAMq Test Orchestrator",
+    "subtitle": "Counter integrity test"
+  },
+  "auth": {
+    "login": "Sign In",
+    "logout": "Sign Out",
+    "username": "Username",
+    "password": "Password",
+    "loginButton": "Sign in",
+    "loggingIn": "Signing in…",
+    "invalidCredentials": "Invalid username or password",
+    "loginError": "Login failed. Please try again."
+  },
+  "controls": {
+    "start": "Start Test",
+    "stop": "Stop Test",
+    "freq": "Frequency",
+    "maxCounter": "Counter Max",
+    "hz": "Hz",
+    "starting": "Starting…",
+    "stopping": "Stopping…"
+  },
+  "cards": {
+    "sent": "Sent",
+    "received": "Received",
+    "missing": "Missing",
+    "cycle": "Cycle",
+    "completion": "Completion"
+  },
+  "charts": {
+    "counterValue": "Counter Value",
+    "rate": "Rate (msg/s)",
+    "gaps": "Gaps Detected",
+    "sent": "Sent",
+    "received": "Received",
+    "sendRate": "Send Rate",
+    "recvRate": "Recv Rate"
+  },
+  "judge": {
+    "title": "Missing Numbers",
+    "none": "No gaps detected ✓",
+    "showing": "Showing first {{n}} of {{total}} missing values"
+  },
+  "status": {
+    "running": "Running",
+    "stopped": "Stopped"
+  },
+  "common": {
+    "loading": "Loading…",
+    "darkMode": "Dark Mode",
+    "lightMode": "Light Mode",
+    "language": "Language"
+  }
+}

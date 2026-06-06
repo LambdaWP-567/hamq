@@ -1,0 +1,19 @@
+kafka:
+  bootstrapServers: "hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  topic: "hamq-test-counter"
+  tlsEnabled: false
+
+counter:
+  max: 10000
+  frequencyHz: 10.0
+  autostart: false
+
+ingress:
+  enabled: true
+  className: traefik
+  host: orchestrator.hamq.test
+  tls: true
+  tlsSecretName: hamq-tls
+
+imagePullSecrets:
+  - name: ghcr-secret

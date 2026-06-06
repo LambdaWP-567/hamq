@@ -35,6 +35,10 @@ topics:
       minInsyncReplicas: "2"
   dlq:
     replicas: 3
+  test-counter:
+    replicas: 3
+    config:
+      minInsyncReplicas: "2"
 certManager:
   enabled: false
 monitoring:

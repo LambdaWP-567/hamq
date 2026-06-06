@@ -1,0 +1,56 @@
+{
+  "header": {
+    "title": "HAMq Test Orchestrator",
+    "subtitle": "Zähler-Integritätstest"
+  },
+  "auth": {
+    "login": "Anmelden",
+    "logout": "Abmelden",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "loginButton": "Anmelden",
+    "loggingIn": "Anmelden…",
+    "invalidCredentials": "Ungültiger Benutzername oder Passwort",
+    "loginError": "Anmeldung fehlgeschlagen. Bitte erneut versuchen."
+  },
+  "controls": {
+    "start": "Test starten",
+    "stop": "Test stoppen",
+    "freq": "Frequenz",
+    "maxCounter": "Zähler-Maximum",
+    "hz": "Hz",
+    "starting": "Startet…",
+    "stopping": "Stoppt…"
+  },
+  "cards": {
+    "sent": "Gesendet",
+    "received": "Empfangen",
+    "missing": "Fehlend",
+    "cycle": "Zyklus",
+    "completion": "Abdeckung"
+  },
+  "charts": {
+    "counterValue": "Zählerwert",
+    "rate": "Rate (msg/s)",
+    "gaps": "Erkannte Lücken",
+    "sent": "Gesendet",
+    "received": "Empfangen",
+    "sendRate": "Senderate",
+    "recvRate": "Empfangsrate"
+  },
+  "judge": {
+    "title": "Fehlende Nummern",
+    "none": "Keine Lücken erkannt ✓",
+    "showing": "Erste {{n}} von {{total}} fehlenden Werten"
+  },
+  "status": {
+    "running": "Läuft",
+    "stopped": "Gestoppt"
+  },
+  "common": {
+    "loading": "Wird geladen…",
+    "darkMode": "Dunkelmodus",
+    "lightMode": "Hellmodus",
+    "language": "Sprache"
+  }
+}

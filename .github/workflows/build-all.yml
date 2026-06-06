@@ -26,6 +26,10 @@ jobs:
     uses: ./.github/workflows/build-controller.yml
     secrets: inherit
 
+  build-test-orchestrator:
+    uses: ./.github/workflows/build-test-orchestrator.yml
+    secrets: inherit
+
   helm-lint:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,50 @@
+replicaCount: 1
+
+image:
+  repository: ghcr.io/lambdawp-567/hamq-test-orchestrator
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+
+kafka:
+  bootstrapServers: "hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
+  topic: "hamq-test-counter"
+  tlsEnabled: false
+  caCertSecret: ""
+  clientCertSecret: ""
+
+counter:
+  max: 10000
+  frequencyHz: 10.0
+  autostart: false
+
+auth:
+  secretName: "hamq-test-orchestrator-auth"
+  secretKeyUsername: "username"
+  secretKeyPassword: "password"
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: traefik
+  host: orchestrator.hamq.local
+  tls: false
+  tlsSecretName: ""
+  annotations: {}
+
+resources:
+  requests:
+    memory: 128Mi
+    cpu: 50m
+  limits:
+    memory: 256Mi
+    cpu: 500m
+
+monitoring:
+  enabled: false
+  serviceMonitor:
+    enabled: false
