@@ -19,7 +19,8 @@
     "stop": "Stop",
     "frequency": "Frequency (msg/s)",
     "apply": "Apply",
-    "frequencyHint": "Valid range: 1 – 1000 msg/s"
+    "frequencyHint": "Valid range: 1 – 1000 msg/s",
+    "reset": "Reset Stats"
   },
   "login": {
     "title": "Sign In",

@@ -65,18 +65,37 @@ function toChartPoints(history: RateDataPoint[]): ChartPoint[] {
 interface StatsProps {
   rateHistory: RateDataPoint[]
   status: ProducerStatus | null
+  onReset?: () => void
 }
 
-export default function Stats({ rateHistory, status }: StatsProps) {
+export default function Stats({ rateHistory, status, onReset }: StatsProps) {
   const { t } = useTranslation()
   const chartData = useMemo(() => toChartPoints(rateHistory), [rateHistory])
+
+  const yMax = useMemo(() => {
+    const dataMax = chartData.length > 0 ? Math.max(...chartData.map(p => p.sentPerSec)) : 0
+    return Math.max(dataMax, Math.ceil((status?.frequency_hz ?? 0) * 1.2), 10)
+  }, [chartData, status])
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 space-y-5">
       {/* Header */}
-      <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-        {t('chart.title')}
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+          {t('chart.title')}
+        </h2>
+        {onReset && (
+          <button
+            onClick={onReset}
+            className="text-xs font-medium text-gray-500 dark:text-gray-400
+                       hover:text-red-600 dark:hover:text-red-400
+                       px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700
+                       transition-colors duration-150"
+          >
+            {t('controls.reset')}
+          </button>
+        )}
+      </div>
 
       {/* Counter tiles */}
       <div className="grid grid-cols-2 gap-3">
@@ -116,7 +135,7 @@ export default function Stats({ rateHistory, status }: StatsProps) {
               tick={{ fontSize: 10 }}
               stroke="#9ca3af"
               allowDecimals={false}
-              domain={[0, (dataMax: number) => Math.max(dataMax, Math.ceil((status?.frequency_hz ?? 0) * 1.2))]}
+              domain={[0, yMax]}
             />
             <Tooltip
               contentStyle={{ fontSize: '12px' }}

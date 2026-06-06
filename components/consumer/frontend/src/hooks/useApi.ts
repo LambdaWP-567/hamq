@@ -65,6 +65,11 @@ export function useApi() {
     return resp.data
   }, [])
 
+  /** POST /api/reset — zero checksum errors and lag estimate */
+  const resetStats = useCallback(async (): Promise<void> => {
+    await axios.post('/api/reset', {}, { headers: getHeaders() })
+  }, [])
+
   /** GET /api/messages/missing */
   const getMissingSequences = useCallback(
     async (producerId: string, seqFrom: number, seqTo: number): Promise<number[]> => {
@@ -85,6 +90,7 @@ export function useApi() {
     getStatus,
     startConsumer,
     stopConsumer,
+    resetStats,
     getMessages,
     getRecentMessages,
     getMissingSequences,

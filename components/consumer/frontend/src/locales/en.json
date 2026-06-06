@@ -20,7 +20,8 @@
     "start": "Start Consuming",
     "stop": "Stop Consuming",
     "starting": "Starting…",
-    "stopping": "Stopping…"
+    "stopping": "Stopping…",
+    "reset": "Reset Stats"
   },
   "messages": {
     "title": "Received Messages",

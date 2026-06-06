@@ -96,6 +96,12 @@ class ConsumerService:
         await self._kafka.stop()
         logger.info("Consumer stopped")
 
+    def reset_stats(self) -> None:
+        """Reset in-memory stats counters (checksum errors, lag). Does not clear SQLite."""
+        self._kafka.checksum_errors = 0
+        self._kafka.lag_estimate = 0
+        logger.info("Consumer stats reset")
+
     # ---------------------------------------------------------------------- #
     #  Status
     # ---------------------------------------------------------------------- #

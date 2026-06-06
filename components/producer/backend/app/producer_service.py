@@ -123,6 +123,15 @@ class ProducerService:
                 pass
         self._produce_task = None
 
+    def reset_stats(self) -> None:
+        """Reset cumulative in-memory counters to zero for a fresh test run."""
+        self._sent_count = 0
+        self._error_count = 0
+        self._last_sent_count = 0
+        self._ema_rate = 0.0
+        self._recent_messages.clear()
+        logger.info("Producer %s stats reset", self._producer_id)
+
     async def set_frequency(self, hz: float) -> None:
         """
         Update the message generation frequency at runtime.

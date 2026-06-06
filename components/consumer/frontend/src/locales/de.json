@@ -20,7 +20,8 @@
     "start": "Empfang starten",
     "stop": "Empfang stoppen",
     "starting": "Wird gestartet…",
-    "stopping": "Wird gestoppt…"
+    "stopping": "Wird gestoppt…",
+    "reset": "Statistiken zurücksetzen"
   },
   "messages": {
     "title": "Empfangene Nachrichten",

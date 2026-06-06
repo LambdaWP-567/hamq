@@ -283,6 +283,20 @@ async def start_consumer(
 
 
 @router.post(
+    "/api/reset",
+    summary="Reset consumer statistics",
+    tags=["consumer"],
+)
+async def reset_stats(
+    _: str = Depends(require_auth),
+    svc: ConsumerService = Depends(_get_service),
+) -> dict:
+    """Reset in-memory counters (checksum errors, lag estimate) to zero."""
+    svc.reset_stats()
+    return {"status": "reset", "consumer_id": settings.CONSUMER_ID}
+
+
+@router.post(
     "/api/stop",
     summary="Stop consuming from Kafka",
     tags=["consumer"],

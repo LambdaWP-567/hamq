@@ -39,18 +39,34 @@ function buildHistogram(history: ReceiveRatePoint[]): LatencyBucket[] {
 interface StatsProps {
   rateHistory: ReceiveRatePoint[]
   status: ConsumerStatus | null
+  receivedAtReset?: number
+  onReset?: () => void
 }
 
-export default function Stats({ rateHistory, status }: StatsProps) {
+export default function Stats({ rateHistory, status, receivedAtReset = 0, onReset }: StatsProps) {
   const { t } = useTranslation()
   const histogram = useMemo(() => buildHistogram(rateHistory), [rateHistory])
+  const displayReceived = Math.max(0, (status?.received_count ?? 0) - receivedAtReset)
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm p-5 space-y-5">
       {/* Header */}
-      <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-        {t('stats.title')}
-      </h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+          {t('stats.title')}
+        </h2>
+        {onReset && (
+          <button
+            onClick={onReset}
+            className="text-xs font-medium text-gray-500 dark:text-gray-400
+                       hover:text-red-600 dark:hover:text-red-400
+                       px-2 py-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700
+                       transition-colors duration-150"
+          >
+            {t('controls.reset')}
+          </button>
+        )}
+      </div>
 
       {/* Counter tiles */}
       <div className="grid grid-cols-2 gap-3">
@@ -59,7 +75,7 @@ export default function Stats({ rateHistory, status }: StatsProps) {
             {t('status.received')}
           </p>
           <p className="mt-1 text-2xl font-bold text-blue-800 dark:text-blue-300 tabular-nums">
-            {(status?.received_count ?? 0).toLocaleString()}
+            {displayReceived.toLocaleString()}
           </p>
         </div>
         <div className={`rounded-lg p-3 ${

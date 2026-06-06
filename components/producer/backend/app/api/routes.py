@@ -207,6 +207,21 @@ async def update_frequency(
     return await producer_service.async_get_status()
 
 
+@router.post(
+    "/api/v1/producer/reset",
+    response_model=ProducerStatus,
+    summary="Reset producer statistics",
+    tags=["producer"],
+)
+async def reset_producer(
+    request: Request,
+    _: str = Depends(get_current_user),
+) -> ProducerStatus:
+    producer_service = request.app.state.producer_service
+    producer_service.reset_stats()
+    return await producer_service.async_get_status()
+
+
 @router.get(
     "/api/messages/recent",
     summary="Get the last N generated messages",

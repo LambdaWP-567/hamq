@@ -19,7 +19,8 @@
     "stop": "Stoppen",
     "frequency": "Frequenz (msg/s)",
     "apply": "Übernehmen",
-    "frequencyHint": "Gültige Werte: 1 – 1000 msg/s"
+    "frequencyHint": "Gültige Werte: 1 – 1000 msg/s",
+    "reset": "Statistiken zurücksetzen"
   },
   "login": {
     "title": "Anmelden",

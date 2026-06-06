@@ -31,6 +31,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
   const [wsConnected, setWsConnected] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionPending, setActionPending] = useState(false)
+  const [receivedAtReset, setReceivedAtReset] = useState(0)
 
   // ------------------------------------------------------------------
   // WebSocket: handle real-time status updates
@@ -122,6 +123,17 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
       setActionPending(false)
     }
   }, [api, status, t])
+
+  // ------------------------------------------------------------------
+  // Reset stats
+  // ------------------------------------------------------------------
+  const handleReset = useCallback(async () => {
+    try {
+      await api.resetStats()
+      setRateHistory([])
+      setReceivedAtReset(status?.received_count ?? 0)
+    } catch {}
+  }, [api, status])
 
   const isRunning = status?.running ?? false
   const lagVariant = (status?.lag_estimate ?? 0) > 1000 ? 'warning' : 'ok'
@@ -304,7 +316,12 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
 
         {/* Stats + MessageLog */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Stats rateHistory={rateHistory} status={status} />
+          <Stats
+            rateHistory={rateHistory}
+            status={status}
+            receivedAtReset={receivedAtReset}
+            onReset={handleReset}
+          />
           <MessageLog messages={messages} />
         </div>
       </main>

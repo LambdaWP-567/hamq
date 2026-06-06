@@ -107,6 +107,17 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
   }, [api, applyStatus])
 
   // ------------------------------------------------------------------
+  // Reset stats
+  // ------------------------------------------------------------------
+  const handleReset = useCallback(async () => {
+    try {
+      const res = await api.post<ProducerStatus>('/api/v1/producer/reset')
+      setStatus(res.data)
+      setRateHistory([])
+    } catch {}
+  }, [api])
+
+  // ------------------------------------------------------------------
   // Derived status values
   // ------------------------------------------------------------------
   const kafkaVariant = status?.kafka_connected ? 'success' : 'danger'
@@ -242,7 +253,7 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
             api={api}
             onStatusChange={setStatus}
           />
-          <Stats rateHistory={rateHistory} status={status} />
+          <Stats rateHistory={rateHistory} status={status} onReset={handleReset} />
         </div>
 
         {/* Message log — full width */}
