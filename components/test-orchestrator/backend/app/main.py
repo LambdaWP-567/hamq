@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -23,6 +25,30 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+HISTORY_INTERVAL = 3.0   # seconds between history points
+HISTORY_MAX = 30          # 30 × 3 s = 90-second window
+
+
+async def _history_recorder(state) -> None:
+    while True:
+        await asyncio.sleep(HISTORY_INTERVAL)
+        if not state.running:
+            continue
+        judge = state.judge
+        prod = state.prod
+        cons = state.cons
+        point = {
+            "time": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+            "sent": prod.sent_counter,
+            "received": cons.recv_counter,
+            "send_rate": round(prod.send_rate, 2),
+            "recv_rate": round(cons.recv_rate, 2),
+            "missing_count": len(judge.missing()),
+        }
+        state.history.append(point)
+        if len(state.history) > HISTORY_MAX:
+            state.history.pop(0)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -39,7 +65,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.freq_hz = settings.FREQ_HZ
     app.state.counter_max = settings.COUNTER_MAX
     app.state.history = []
-    app.state.history_tick = 0
+
+    asyncio.create_task(_history_recorder(app.state))
 
     if settings.AUTOSTART:
         logger.info("AUTOSTART=true — starting test immediately")

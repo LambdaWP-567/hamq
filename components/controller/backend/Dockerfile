@@ -5,6 +5,7 @@ RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 FROM python:3.12-slim
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends libvirt-clients && rm -rf /var/lib/apt/lists/*
 # Create non-root user for security
 RUN useradd -r -u 1001 appuser
 COPY --from=builder /install /usr/local

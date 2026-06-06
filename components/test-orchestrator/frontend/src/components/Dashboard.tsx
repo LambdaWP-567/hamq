@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Zap, Play, Square, AlertTriangle, Info } from 'lucide-react'
+import { Zap, Play, Square, AlertTriangle, Info, RotateCcw } from 'lucide-react'
 import clsx from 'clsx'
 import { useApi } from '../hooks/useApi'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -77,6 +77,18 @@ export default function Dashboard({ token, onLogout }: Props) {
   }, [fetchStatus])
 
   useWebSocket(token, (data) => setStatus(data as OrchestratorStatus))
+
+  const handleReset = async () => {
+    setActionPending(true)
+    try {
+      await api.resetTest()
+      await fetchStatus()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error')
+    } finally {
+      setActionPending(false)
+    }
+  }
 
   const handleStart = async () => {
     setActionPending(true)
@@ -173,6 +185,15 @@ export default function Dashboard({ token, onLogout }: Props) {
           >
             <Square className="w-4 h-4" />
             {actionPending && running ? t('controls.stopping') : t('controls.stop')}
+          </button>
+          <button
+            onClick={handleReset}
+            disabled={running || actionPending}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Reset all counters and chart history"
+          >
+            <RotateCcw className="w-4 h-4" />
+            {t('controls.reset')}
           </button>
 
           <div className="flex items-center gap-2 ml-2">

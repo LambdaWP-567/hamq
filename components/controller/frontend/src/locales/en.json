@@ -71,7 +71,19 @@
     "drainWarning": "Draining a node will evict all running pods. Ensure workloads are resilient before proceeding.",
     "cordonSuccess": "Node {{name}} cordoned",
     "uncordonSuccess": "Node {{name}} uncordoned",
-    "drainSuccess": "Node {{name}} drain initiated"
+    "drainSuccess": "Node {{name}} drain initiated",
+    "reset": "Reset",
+    "resetTitle": "Hard reset — immediate power cycle via KVM (virsh reset)",
+    "resetSuccess": "Node {{name}} hard-reset",
+    "reboot": "Reboot",
+    "rebootTitle": "Graceful ACPI reboot via KVM (virsh reboot)",
+    "rebootSuccess": "Node {{name}} reboot initiated",
+    "networkCut": "Cut Network",
+    "networkCutTitle": "Unplug virtual NIC via KVM (virsh domif-setlink down)",
+    "networkCutSuccess": "Network cut for {{name}}",
+    "networkRestore": "Restore Network",
+    "networkRestoreTitle": "Replug virtual NIC via KVM (virsh domif-setlink up)",
+    "networkRestoreSuccess": "Network restored for {{name}}"
   },
   "chaos": {
     "title": "Chaos Engineering",

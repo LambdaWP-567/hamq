@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import os
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, Query, status
 
 from app.auth import get_current_user, login_for_access_token
 from app.config import settings
+from app.kafka_purge import purge_topic
 from app.models import ConfigUpdate, LoginRequest, MissingEntry, OrchestratorStatus, TokenResponse
 
 router = APIRouter()
@@ -54,9 +54,10 @@ async def start_test(request: Request, _: str = Depends(get_current_user)) -> di
     state.cons.total_received = 0
     state.cons.recv_rate = 0.0
     state.history.clear()
-    state.history_tick = 0
-    await state.prod.start(freq, max_val)
+    await purge_topic()
     await state.cons.start()
+    await asyncio.sleep(0.5)  # let consumer group join before producer sends
+    await state.prod.start(freq, max_val)
     return {"ok": True}
 
 
@@ -68,6 +69,23 @@ async def stop_test(request: Request, _: str = Depends(get_current_user)) -> dic
     state.running = False
     await state.prod.stop()
     await state.cons.stop()
+    return {"ok": True}
+
+
+@router.post("/api/reset", tags=["orchestrator"])
+async def reset_test(request: Request, _: str = Depends(get_current_user)) -> dict:
+    state = request.app.state
+    if state.running:
+        return {"ok": False, "message": "stop the test before resetting"}
+    state.judge.reset()
+    state.prod.sent_counter = 0
+    state.prod.total_sent = 0
+    state.prod.send_rate = 0.0
+    state.cons.recv_counter = None
+    state.cons.total_received = 0
+    state.cons.recv_rate = 0.0
+    state.history.clear()
+    await purge_topic()
     return {"ok": True}
 
 
@@ -123,24 +141,6 @@ def _build_status(req) -> OrchestratorStatus:
     prod = state.prod
     cons = state.cons
     missing = judge.missing()
-    now_str = datetime.now(timezone.utc).strftime("%H:%M:%S")
-
-    point = {
-        "time": now_str,
-        "sent": prod.sent_counter,
-        "received": cons.recv_counter,
-        "send_rate": round(prod.send_rate, 2),
-        "recv_rate": round(cons.recv_rate, 2),
-        "missing_count": len(missing),
-    }
-    history: list = state.history
-    if state.running:
-        state.history_tick += 1
-        if state.history_tick % 4 == 0:
-            history.append(point)
-            if len(history) > 30:
-                history.pop(0)
-
     return OrchestratorStatus(
         running=state.running,
         cycle=judge.cycle,
@@ -155,5 +155,5 @@ def _build_status(req) -> OrchestratorStatus:
         missing_count=len(missing),
         completion_pct=round(judge.completion_pct(), 1),
         missing_sample=[MissingEntry(number=n, first_seen=ts) for n, ts in judge.missing_with_timestamps()[:20]],
-        history=history[-30:],
+        history=state.history[-30:],
     )

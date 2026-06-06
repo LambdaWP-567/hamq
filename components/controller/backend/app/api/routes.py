@@ -44,6 +44,7 @@ from app.auth import get_current_user, login_for_access_token
 from app.chaos_engine import ChaosEngine
 from app.event_store import EventStore
 from app.k8s_client import K8sClient
+import app.virsh_client as virsh
 from app.metrics import (
     active_network_partitions_gauge,
     controller_operations_total,
@@ -219,6 +220,12 @@ async def get_status(
         _fetch_databus_metrics(cfg),
     )
 
+    # Inject KVM state into nodes
+    cut_nodes: set[str] = request.app.state.network_cut_nodes
+    for node in nodes:
+        node.kvm_available = virsh.is_kvm_node(node.name)
+        node.network_cut = node.name in cut_nodes
+
     # Update Prometheus gauges while we have fresh data
     kafka_pods_ready_gauge.set(sum(1 for p in kafka_pods if p.ready))
     nodes_schedulable_gauge.set(sum(1 for n in nodes if n.schedulable))
@@ -326,7 +333,12 @@ async def list_nodes(
 ) -> List[NodeInfo]:
     """Returns all Kubernetes nodes with scheduling state and conditions."""
     k8s: K8sClient = _get_k8s(request)
-    return await k8s.list_nodes()
+    nodes = await k8s.list_nodes()
+    cut_nodes: set[str] = request.app.state.network_cut_nodes
+    for node in nodes:
+        node.kvm_available = virsh.is_kvm_node(node.name)
+        node.network_cut = node.name in cut_nodes
+    return nodes
 
 
 @router.post(
@@ -405,6 +417,142 @@ async def drain_node(
     )
     await store.save_event(event)
     controller_operations_total.labels(operation="node_drain", status=event.status).inc()
+    return event
+
+
+@router.post(
+    "/api/nodes/{name}/reset",
+    response_model=ClusterEvent,
+    summary="Hard-reset a KVM node (virsh reset)",
+    tags=["nodes"],
+)
+async def reset_node(
+    request: Request,
+    name: str,
+    _user: str = Depends(get_current_user),
+) -> ClusterEvent:
+    store: EventStore = _get_store(request)
+    event = ClusterEvent(
+        event_id=str(__import__("uuid").uuid4()),
+        timestamp=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(timespec="milliseconds"),
+        event_type="node_reset",
+        target=name,
+        namespace="",
+        status="pending",
+        details=f"Hard-resetting KVM domain {name}",
+    )
+    if not virsh.is_kvm_node(name):
+        event.status = "failed"
+        event.details = f"{name} is the hypervisor host — virsh reset not applicable"
+    else:
+        ok, msg = await virsh.reset_node(name)
+        event.status = "success" if ok else "failed"
+        event.details = msg
+    await store.save_event(event)
+    controller_operations_total.labels(operation="node_reset", status=event.status).inc()
+    return event
+
+
+@router.post(
+    "/api/nodes/{name}/reboot",
+    response_model=ClusterEvent,
+    summary="Gracefully reboot a KVM node (virsh reboot)",
+    tags=["nodes"],
+)
+async def reboot_node(
+    request: Request,
+    name: str,
+    _user: str = Depends(get_current_user),
+) -> ClusterEvent:
+    store: EventStore = _get_store(request)
+    event = ClusterEvent(
+        event_id=str(__import__("uuid").uuid4()),
+        timestamp=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(timespec="milliseconds"),
+        event_type="node_reboot",
+        target=name,
+        namespace="",
+        status="pending",
+        details=f"Rebooting KVM domain {name} (ACPI)",
+    )
+    if not virsh.is_kvm_node(name):
+        event.status = "failed"
+        event.details = f"{name} is the hypervisor host — virsh reboot not applicable"
+    else:
+        ok, msg = await virsh.reboot_node(name)
+        event.status = "success" if ok else "failed"
+        event.details = msg
+    await store.save_event(event)
+    controller_operations_total.labels(operation="node_reboot", status=event.status).inc()
+    return event
+
+
+@router.post(
+    "/api/nodes/{name}/cut-network",
+    response_model=ClusterEvent,
+    summary="Cut virtual NIC link for a KVM node (virsh domif-setlink down)",
+    tags=["nodes"],
+)
+async def cut_node_network(
+    request: Request,
+    name: str,
+    _user: str = Depends(get_current_user),
+) -> ClusterEvent:
+    store: EventStore = _get_store(request)
+    event = ClusterEvent(
+        event_id=str(__import__("uuid").uuid4()),
+        timestamp=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(timespec="milliseconds"),
+        event_type="node_network_cut",
+        target=name,
+        namespace="",
+        status="pending",
+        details=f"Cutting network for KVM domain {name}",
+    )
+    if not virsh.is_kvm_node(name):
+        event.status = "failed"
+        event.details = f"{name} is the hypervisor host — network cut not applicable"
+    else:
+        ok, msg = await virsh.cut_network(name)
+        event.status = "success" if ok else "failed"
+        event.details = msg
+        if ok:
+            request.app.state.network_cut_nodes.add(name)
+    await store.save_event(event)
+    controller_operations_total.labels(operation="node_network_cut", status=event.status).inc()
+    return event
+
+
+@router.post(
+    "/api/nodes/{name}/restore-network",
+    response_model=ClusterEvent,
+    summary="Restore virtual NIC link for a KVM node (virsh domif-setlink up)",
+    tags=["nodes"],
+)
+async def restore_node_network(
+    request: Request,
+    name: str,
+    _user: str = Depends(get_current_user),
+) -> ClusterEvent:
+    store: EventStore = _get_store(request)
+    event = ClusterEvent(
+        event_id=str(__import__("uuid").uuid4()),
+        timestamp=__import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(timespec="milliseconds"),
+        event_type="node_network_restore",
+        target=name,
+        namespace="",
+        status="pending",
+        details=f"Restoring network for KVM domain {name}",
+    )
+    if not virsh.is_kvm_node(name):
+        event.status = "failed"
+        event.details = f"{name} is the hypervisor host — network restore not applicable"
+    else:
+        ok, msg = await virsh.restore_network(name)
+        event.status = "success" if ok else "failed"
+        event.details = msg
+        if ok:
+            request.app.state.network_cut_nodes.discard(name)
+    await store.save_event(event)
+    controller_operations_total.labels(operation="node_network_restore", status=event.status).inc()
     return event
 
 
@@ -627,6 +775,10 @@ async def websocket_endpoint(
                 store.get_events(limit=20),
                 _fetch_databus_metrics(cfg),
             )
+            cut_nodes: set[str] = websocket.app.state.network_cut_nodes
+            for node in nodes:
+                node.kvm_available = virsh.is_kvm_node(node.name)
+                node.network_cut = node.name in cut_nodes
 
             status_msg = ControllerStatus(
                 controller_id=cfg.CONTROLLER_ID,

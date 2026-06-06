@@ -45,7 +45,8 @@ class CounterConsumer:
             bootstrap_servers=settings.KAFKA_BOOTSTRAP_SERVERS,
             group_id="hamq-test-orchestrator",
             auto_offset_reset="earliest",
-            enable_auto_commit=False,
+            enable_auto_commit=True,
+            auto_commit_interval_ms=1000,
             ssl_context=ssl_context,
             security_protocol="SSL" if settings.KAFKA_TLS_ENABLED else "PLAINTEXT",
         )
@@ -92,6 +93,5 @@ class CounterConsumer:
                     self._rate_window_count = 0
                     self._rate_window_start = now
 
-                await self._consumer.commit()
             except Exception as exc:
                 logger.warning("Consume error: %s", exc)

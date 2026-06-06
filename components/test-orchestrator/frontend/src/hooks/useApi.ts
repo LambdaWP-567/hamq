@@ -34,5 +34,11 @@ export function useApi(token: string | null) {
     return r.json()
   }, [headers])
 
-  return { getStatus, startTest, stopTest, updateConfig }
+  const resetTest = useCallback(async () => {
+    const r = await fetch('/api/reset', { method: 'POST', headers: headers() })
+    if (!r.ok) throw new Error(`reset ${r.status}`)
+    return r.json()
+  }, [headers])
+
+  return { getStatus, startTest, stopTest, updateConfig, resetTest }
 }

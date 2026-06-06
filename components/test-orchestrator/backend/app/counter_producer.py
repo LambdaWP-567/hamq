@@ -84,7 +84,7 @@ class CounterProducer:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             try:
-                await self._producer.send(settings.KAFKA_TOPIC, msg)
+                await self._producer.send(settings.KAFKA_TOPIC, msg, key=b"counter")
                 self.sent_counter = counter
                 self.total_sent += 1
                 self._rate_window_count += 1

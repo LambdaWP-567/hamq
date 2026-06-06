@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { RefreshCw, AlertTriangle, AlertCircle, CheckCircle2, Ban } from 'lucide-react'
+import { RefreshCw, AlertTriangle, AlertCircle, CheckCircle2, Ban, RotateCcw, Power, WifiOff, Wifi } from 'lucide-react'
 import clsx from 'clsx'
 import { useApi, extractErrorMessage } from '../hooks/useApi'
 import { useToast } from '../hooks/useToast'
@@ -138,6 +138,47 @@ const NodeControl: React.FC<NodeControlProps> = ({ liveStatus }) => {
                           <AlertTriangle className="w-3 h-3" />
                           {t('nodes.drain')}
                         </button>
+                        {node.kvm_available && (<>
+                          <button
+                            onClick={() => void exec(t('nodes.resetSuccess', { name: node.name }), () => api.resetNode(node.name), 'info')}
+                            disabled={isActing || actionLoading !== null}
+                            className="btn-danger py-1 px-2 text-xs"
+                            title={t('nodes.resetTitle')}
+                          >
+                            {isActing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
+                            {t('nodes.reset')}
+                          </button>
+                          <button
+                            onClick={() => void exec(t('nodes.rebootSuccess', { name: node.name }), () => api.rebootNode(node.name), 'info')}
+                            disabled={isActing || actionLoading !== null}
+                            className="btn-secondary py-1 px-2 text-xs"
+                            title={t('nodes.rebootTitle')}
+                          >
+                            {isActing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Power className="w-3 h-3" />}
+                            {t('nodes.reboot')}
+                          </button>
+                          {node.network_cut ? (
+                            <button
+                              onClick={() => void exec(t('nodes.networkRestoreSuccess', { name: node.name }), () => api.restoreNodeNetwork(node.name))}
+                              disabled={isActing || actionLoading !== null}
+                              className="btn-primary py-1 px-2 text-xs"
+                              title={t('nodes.networkRestoreTitle')}
+                            >
+                              {isActing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Wifi className="w-3 h-3" />}
+                              {t('nodes.networkRestore')}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => void exec(t('nodes.networkCutSuccess', { name: node.name }), () => api.cutNodeNetwork(node.name), 'info')}
+                              disabled={isActing || actionLoading !== null}
+                              className="btn-danger py-1 px-2 text-xs"
+                              title={t('nodes.networkCutTitle')}
+                            >
+                              {isActing ? <RefreshCw className="w-3 h-3 animate-spin" /> : <WifiOff className="w-3 h-3" />}
+                              {t('nodes.networkCut')}
+                            </button>
+                          )}
+                        </>)}
                       </div>
                     </td>
                   </tr>

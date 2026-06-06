@@ -71,7 +71,19 @@
     "drainWarning": "Das Leeren eines Knotens evakuiert alle laufenden Pods. Stellen Sie sicher, dass Workloads resilient sind.",
     "cordonSuccess": "Knoten {{name}} abgesperrt",
     "uncordonSuccess": "Knoten {{name}} freigegeben",
-    "drainSuccess": "Leerung von Knoten {{name}} eingeleitet"
+    "drainSuccess": "Leerung von Knoten {{name}} eingeleitet",
+    "reset": "Reset",
+    "resetTitle": "Harter Reset — sofortiger Neustart über KVM (virsh reset)",
+    "resetSuccess": "Knoten {{name}} hard-reset",
+    "reboot": "Neustart",
+    "rebootTitle": "Geordneter ACPI-Neustart über KVM (virsh reboot)",
+    "rebootSuccess": "Neustart von Knoten {{name}} eingeleitet",
+    "networkCut": "Netz trennen",
+    "networkCutTitle": "Virtuellen NIC trennen über KVM (virsh domif-setlink down)",
+    "networkCutSuccess": "Netz getrennt für {{name}}",
+    "networkRestore": "Netz wiederherstellen",
+    "networkRestoreTitle": "Virtuellen NIC verbinden über KVM (virsh domif-setlink up)",
+    "networkRestoreSuccess": "Netz wiederhergestellt für {{name}}"
   },
   "chaos": {
     "title": "Chaos-Engineering",

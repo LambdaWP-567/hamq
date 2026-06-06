@@ -23,6 +23,8 @@ export interface NodeInfo {
   schedulable: boolean
   roles: string[]
   conditions: NodeCondition[]
+  kvm_available: boolean
+  network_cut: boolean
 }
 
 export interface NetworkPolicyInfo {

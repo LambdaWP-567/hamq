@@ -104,6 +104,26 @@ export function useApi() {
         return data
       },
 
+      resetNode: async (name: string): Promise<ClusterEvent> => {
+        const { data } = await api.post<ClusterEvent>(`/api/nodes/${encodeURIComponent(name)}/reset`)
+        return data
+      },
+
+      rebootNode: async (name: string): Promise<ClusterEvent> => {
+        const { data } = await api.post<ClusterEvent>(`/api/nodes/${encodeURIComponent(name)}/reboot`)
+        return data
+      },
+
+      cutNodeNetwork: async (name: string): Promise<ClusterEvent> => {
+        const { data } = await api.post<ClusterEvent>(`/api/nodes/${encodeURIComponent(name)}/cut-network`)
+        return data
+      },
+
+      restoreNodeNetwork: async (name: string): Promise<ClusterEvent> => {
+        const { data } = await api.post<ClusterEvent>(`/api/nodes/${encodeURIComponent(name)}/restore-network`)
+        return data
+      },
+
       // -----------------------------------------------------------------------
       // Network policies
       // -----------------------------------------------------------------------

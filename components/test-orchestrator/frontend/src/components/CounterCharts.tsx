@@ -99,9 +99,15 @@ function AreaChart({
   )
 }
 
+const SLOTS = 30  // 30 × 3 s = 90-second window
+
 export default function CounterCharts({ history, missingSample, missingCount, counterMax, freqHz }: Props) {
   const { t } = useTranslation()
-  const labels = history.map(p => p.time)
+
+  // Always pad to SLOTS items so the X axis spans the full 90-second window
+  const pad = Math.max(0, SLOTS - history.length)
+  const padded = [...Array(pad).fill(null), ...history]
+  const labels = padded.map((p, i) => p?.time ?? '')
 
   // Step sizes for 5 even dividers (6 tick marks including 0 and max)
   const counterStep = Math.ceil(counterMax / 5)
@@ -115,7 +121,7 @@ export default function CounterCharts({ history, missingSample, missingCount, co
         datasets={[
           {
             label: t('charts.sent'),
-            data: history.map(p => p.sent),
+            data: padded.map(p => p?.sent ?? null),
             borderColor: '#3b82f6',
             backgroundColor: 'rgba(59,130,246,0.08)',
             borderWidth: 2,
@@ -125,7 +131,7 @@ export default function CounterCharts({ history, missingSample, missingCount, co
           },
           {
             label: t('charts.received'),
-            data: history.map(p => p.received ?? null),
+            data: padded.map(p => p?.received ?? null),
             borderColor: '#10b981',
             backgroundColor: 'rgba(16,185,129,0.08)',
             borderWidth: 2,
@@ -145,7 +151,7 @@ export default function CounterCharts({ history, missingSample, missingCount, co
         datasets={[
           {
             label: t('charts.sendRate'),
-            data: history.map(p => p.send_rate),
+            data: padded.map(p => p?.send_rate ?? null),
             borderColor: '#3b82f6',
             backgroundColor: 'rgba(59,130,246,0.08)',
             borderWidth: 2,
@@ -155,7 +161,7 @@ export default function CounterCharts({ history, missingSample, missingCount, co
           },
           {
             label: t('charts.recvRate'),
-            data: history.map(p => p.recv_rate),
+            data: padded.map(p => p?.recv_rate ?? null),
             borderColor: '#10b981',
             backgroundColor: 'rgba(16,185,129,0.08)',
             borderWidth: 2,
@@ -175,7 +181,7 @@ export default function CounterCharts({ history, missingSample, missingCount, co
         datasets={[
           {
             label: t('charts.gaps'),
-            data: history.map(p => p.missing_count),
+            data: padded.map(p => p?.missing_count ?? null),
             borderColor: '#ef4444',
             backgroundColor: 'rgba(239,68,68,0.08)',
             borderWidth: 2,

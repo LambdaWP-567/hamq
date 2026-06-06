@@ -83,6 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.event_store = event_store
     app.state.chaos_engine = chaos_engine
     app.state.settings = settings
+    app.state.network_cut_nodes: set[str] = set()
 
     logger.info("HAMq Controller startup complete — listening on port %d", settings.API_PORT)
 

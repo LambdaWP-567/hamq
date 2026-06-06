@@ -20,7 +20,8 @@
     "maxCounter": "Counter Max",
     "hz": "Hz",
     "starting": "Starting…",
-    "stopping": "Stopping…"
+    "stopping": "Stopping…",
+    "reset": "Reset"
   },
   "cards": {
     "sent": "Sent",

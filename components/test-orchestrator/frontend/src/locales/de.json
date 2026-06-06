@@ -20,7 +20,8 @@
     "maxCounter": "Zähler-Maximum",
     "hz": "Hz",
     "starting": "Startet…",
-    "stopping": "Stoppt…"
+    "stopping": "Stoppt…",
+    "reset": "Zurücksetzen"
   },
   "cards": {
     "sent": "Gesendet",

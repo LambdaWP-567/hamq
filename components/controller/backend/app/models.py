@@ -62,6 +62,14 @@ class NodeInfo(BaseModel):
         default_factory=list,
         description="Raw condition objects from the node status"
     )
+    kvm_available: bool = Field(
+        default=False,
+        description="True when virsh KVM operations are supported for this node"
+    )
+    network_cut: bool = Field(
+        default=False,
+        description="True when the node's virtual NIC link has been cut via virsh"
+    )
 
 
 class NetworkPolicyInfo(BaseModel):
@@ -112,6 +120,10 @@ class ClusterEvent(BaseModel):
         "node_cordon",
         "node_drain",
         "node_uncordon",
+        "node_reset",
+        "node_reboot",
+        "node_network_cut",
+        "node_network_restore",
         "network_partition_create",
         "network_partition_delete",
         "chaos_random",

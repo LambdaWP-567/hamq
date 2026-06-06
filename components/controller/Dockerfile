@@ -36,8 +36,8 @@ LABEL org.opencontainers.image.title="HAMq Controller" \
       org.opencontainers.image.description="Chaos & cluster lifecycle controller — FastAPI + React UI" \
       org.opencontainers.image.version="${APP_VERSION}"
 
-# curl for HEALTHCHECK
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# curl for HEALTHCHECK, libvirt-clients for virsh (KVM node operations)
+RUN apt-get update && apt-get install -y --no-install-recommends curl libvirt-clients \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid 1001 hamq && \
