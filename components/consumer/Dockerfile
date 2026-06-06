@@ -34,6 +34,9 @@ COPY frontend/ ./
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+ARG APP_VERSION=dev
+ENV VITE_APP_VERSION=${APP_VERSION}
+
 # The Vite config sets outDir to ../backend/static — produce the bundle there.
 RUN npm run build
 

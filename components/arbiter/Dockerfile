@@ -20,6 +20,9 @@ COPY frontend/ ./
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
+ARG APP_VERSION=dev
+ENV VITE_APP_VERSION=${APP_VERSION}
+
 RUN npm run build
 
 # ─── Stage 2: Python runtime ──────────────────────────────────────────────────

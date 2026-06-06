@@ -266,7 +266,10 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
             </div>
             <div>
               <h1 className="text-xl font-bold text-white leading-none">{t('nav.title')}</h1>
-              <p className="text-brand-200 text-xs mt-0.5">{t('nav.dashboard')}</p>
+              <p className="text-brand-200 text-xs mt-0.5">
+                {t('nav.dashboard')}
+                <span className="ml-2 opacity-60 font-mono">v{import.meta.env.VITE_APP_VERSION ?? 'dev'}</span>
+              </p>
             </div>
           </div>
 

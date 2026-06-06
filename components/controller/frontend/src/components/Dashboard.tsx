@@ -82,11 +82,12 @@ const Dashboard: React.FC = () => {
           <div className="flex items-center gap-3">
             <Zap className="w-7 h-7 text-orange-500" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
                 {t('header.title', 'HAMq Controller')}
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {t('header.subtitle', 'Cluster lifecycle & chaos engineering')}
+                <span className="ml-2 font-mono opacity-60">v{import.meta.env.VITE_APP_VERSION ?? 'dev'}</span>
               </p>
             </div>
           </div>

@@ -131,11 +131,16 @@ export default function Dashboard({ token, api, onLogout }: DashboardProps) {
       <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Left: title + producer ID */}
+            {/* Left: title + version + producer ID */}
             <div className="flex items-center gap-3">
-              <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-                {t('nav.title')}
-              </h1>
+              <div>
+                <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                  {t('nav.title')}
+                </h1>
+                <span className="text-xs font-mono text-gray-400 dark:text-gray-500">
+                  v{import.meta.env.VITE_APP_VERSION ?? 'dev'}
+                </span>
+              </div>
               {status && (
                 <span className="hidden sm:inline text-sm text-gray-500 dark:text-gray-400 font-mono">
                   {status.producer_id}
