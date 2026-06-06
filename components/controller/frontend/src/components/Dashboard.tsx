@@ -11,12 +11,14 @@ import { useTranslation } from 'react-i18next'
 import { Activity, Server, Zap, Network, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react'
 import clsx from 'clsx'
 import { useApi } from '../hooks/useApi'
+import { useAuth } from '../hooks/useAuth'
 import { useWebSocket } from '../hooks/useWebSocket'
 import type { ControllerStatus } from '../types'
 import PodControl from './PodControl'
 import NodeControl from './NodeControl'
 import ChaosControl from './ChaosControl'
 import NetworkControl from './NetworkControl'
+import LanguageSwitcher from './LanguageSwitcher'
 
 type TabId = 'pods' | 'nodes' | 'chaos' | 'network'
 
@@ -36,6 +38,7 @@ const TABS: TabDef[] = [
 const Dashboard: React.FC = () => {
   const { t } = useTranslation()
   const api = useApi()
+  const { logout } = useAuth()
   const { lastMessage } = useWebSocket()
 
   const [status, setStatus]   = useState<ControllerStatus | null>(null)
@@ -91,7 +94,7 @@ const Dashboard: React.FC = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* K8s connection indicator */}
             <span className={clsx(
               'flex items-center gap-1.5 text-sm font-medium px-3 py-1 rounded-full',
@@ -110,6 +113,16 @@ const Dashboard: React.FC = () => {
               title={t('actions.refresh', 'Refresh')}
             >
               <RefreshCw className="w-4 h-4" />
+            </button>
+            <LanguageSwitcher />
+            <button
+              onClick={logout}
+              className="text-sm font-medium text-gray-500 dark:text-gray-400
+                         hover:text-gray-700 dark:hover:text-gray-200
+                         px-3 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700
+                         transition-colors duration-150"
+            >
+              {t('auth.logout', 'Sign Out')}
             </button>
           </div>
         </div>
