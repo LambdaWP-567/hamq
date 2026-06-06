@@ -148,6 +148,14 @@ kafka:
       # Set to false if you manage users outside of Strimzi
       enabled: true
 
+  # ---------------------------------------------------------------------------
+  # Pod anti-affinity — spread brokers across physical nodes for HA
+  # "required": one broker per node (fails to schedule if impossible)
+  # "preferred": try to spread, allow co-location if cluster is too small
+  # "disabled": no anti-affinity (single-node dev setups)
+  # ---------------------------------------------------------------------------
+  podAntiAffinity: required
+
 # -----------------------------------------------------------------------------
 # Kafka topics — pre-created via KafkaTopic custom resources
 # These are created in the same namespace as the Kafka cluster.

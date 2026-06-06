@@ -195,6 +195,31 @@ spec:
     -Xmx: {{ .Values.kafka.jvmOptions.xmx | quote }}
     -Xms: {{ .Values.kafka.jvmOptions.xms | quote }}
 
+  # ---------------------------------------------------------------------------
+  # Pod template — anti-affinity to spread brokers across nodes
+  # ---------------------------------------------------------------------------
+  {{- if and .Values.kafka.podAntiAffinity (ne .Values.kafka.podAntiAffinity "disabled") }}
+  template:
+    pod:
+      affinity:
+        podAntiAffinity:
+          {{- if eq .Values.kafka.podAntiAffinity "required" }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  strimzi.io/name: {{ .Values.kafka.name }}-dual-role
+              topologyKey: kubernetes.io/hostname
+          {{- else }}
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    strimzi.io/name: {{ .Values.kafka.name }}-dual-role
+                topologyKey: kubernetes.io/hostname
+          {{- end }}
+  {{- end }}
+
 ---
 # =============================================================================
 # 3. Kafka CR — main cluster definition

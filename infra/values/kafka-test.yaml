@@ -1,39 +1,40 @@
 kafka:
   version: "4.1.0"
-  replicas: 1
+  replicas: 3
   config:
-    defaultReplicationFactor: 1
-    minInsyncReplicas: 1
-    offsetsTopicReplicationFactor: 1
-    transactionStateLogReplicationFactor: 1
-    transactionStateLogMinIsr: 1
+    defaultReplicationFactor: 3
+    minInsyncReplicas: 2
+    offsetsTopicReplicationFactor: 3
+    transactionStateLogReplicationFactor: 3
+    transactionStateLogMinIsr: 2
   storage:
     type: persistent-claim
-    size: 2Gi
+    size: 5Gi
     storageClass: local-path
     deleteClaim: true
   resources:
     requests:
       memory: 512Mi
-      cpu: "200m"
+      cpu: "300m"
     limits:
       memory: 1Gi
       cpu: "1000m"
   jvmOptions:
-    xmx: 256m
-    xms: 256m
+    xmx: 384m
+    xms: 384m
   listeners:
     tls:
       enabled: false
     external:
       enabled: false
+  podAntiAffinity: required
 topics:
   messages:
-    replicas: 1
+    replicas: 3
     config:
-      minInsyncReplicas: "1"
+      minInsyncReplicas: "2"
   dlq:
-    replicas: 1
+    replicas: 3
 certManager:
   enabled: false
 monitoring:
