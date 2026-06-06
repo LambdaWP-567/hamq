@@ -146,7 +146,7 @@ const Dashboard: React.FC = () => {
               </h1>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 {t('header.subtitle', 'Cluster lifecycle & chaos engineering')}
-                <span className="ml-2 font-mono opacity-60">v{import.meta.env.VITE_APP_VERSION ?? 'dev'}</span>
+                <span className="ml-2 inline-flex items-center text-xs font-mono font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded">v{import.meta.env.VITE_APP_VERSION ?? 'dev'}</span>
               </p>
             </div>
           </div>

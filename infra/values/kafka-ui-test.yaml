@@ -1,0 +1,26 @@
+yamlApplicationConfig:
+  kafka:
+    clusters:
+      - name: hamq
+        bootstrapServers: hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092
+
+ingress:
+  enabled: true
+  ingressClassName: traefik
+  host: kafka.hamq.test
+  tls:
+    enabled: true
+    secretName: hamq-tls
+  annotations: {}
+
+service:
+  type: ClusterIP
+  port: 8080
+
+resources:
+  requests:
+    memory: 256Mi
+    cpu: 100m
+  limits:
+    memory: 512Mi
+    cpu: 500m

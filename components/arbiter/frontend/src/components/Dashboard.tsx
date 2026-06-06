@@ -268,7 +268,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
               <h1 className="text-xl font-bold text-white leading-none">{t('nav.title')}</h1>
               <p className="text-brand-200 text-xs mt-0.5">
                 {t('nav.dashboard')}
-                <span className="ml-2 opacity-60 font-mono">v{import.meta.env.VITE_APP_VERSION ?? 'dev'}</span>
+                <span className="ml-2 inline-flex items-center text-xs font-mono font-medium bg-white/20 text-white px-1.5 py-0.5 rounded">v{import.meta.env.VITE_APP_VERSION ?? 'dev'}</span>
               </p>
             </div>
           </div>

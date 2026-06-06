@@ -14,8 +14,20 @@ metadata:
     nginx.ingress.kubernetes.io/configuration-snippet: |
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection "upgrade";
+    {{- if and .Values.ingress.tls ((.Values.certManager).enabled) }}
+    cert-manager.io/cluster-issuer: {{ .Values.certManager.issuerName | quote }}
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
 spec:
   ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tlsSecretName | quote }}
+  {{- end }}
   rules:
     - host: {{ .Values.ingress.host | quote }}
       http:

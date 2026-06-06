@@ -165,7 +165,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
                 <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
                   {t('nav.title')}
                 </h1>
-                <span className="text-xs font-mono text-gray-400 dark:text-gray-500">
+                <span className="inline-flex items-center text-xs font-mono font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-1.5 py-0.5 rounded mt-0.5">
                   v{import.meta.env.VITE_APP_VERSION ?? 'dev'}
                 </span>
               </div>

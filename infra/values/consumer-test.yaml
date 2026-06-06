@@ -35,5 +35,7 @@ ingress:
   enabled: true
   className: traefik
   host: consumer.hamq.test
+  tls: true
+  tlsSecretName: hamq-tls
 imagePullSecrets:
   - name: ghcr-secret
