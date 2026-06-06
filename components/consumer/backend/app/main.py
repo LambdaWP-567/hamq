@@ -68,7 +68,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Store on app.state for potential middleware access.
     app.state.consumer_service = svc
 
-    logger.info("ConsumerService ready — call POST /api/start to begin consuming")
+    if settings.CONSUMER_AUTOSTART:
+        await svc.start()
+        logger.info("ConsumerService auto-started (CONSUMER_AUTOSTART=true)")
+    else:
+        logger.info("ConsumerService ready — call POST /api/start to begin consuming")
 
     yield  # <-- application runs here
 

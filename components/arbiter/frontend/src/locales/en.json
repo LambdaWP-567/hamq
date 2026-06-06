@@ -106,5 +106,12 @@
     "retry": "Retry",
     "close": "Close",
     "unknown": "Unknown"
+  },
+  "toast": {
+    "reconcile_ok": "Reconcile complete — no gaps detected",
+    "reconcile_gaps": "Alert: {count} missing sequence(s) detected!",
+    "start_ok": "Reconciler started",
+    "stop_ok": "Reconciler stopped — checks paused",
+    "alarm_alert": "Message loss detected!"
   }
 }

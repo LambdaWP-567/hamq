@@ -345,6 +345,19 @@ class Reconciler:
             logger.debug("Empty sequence set for %s — nothing to reconcile", producer_id)
             return None
 
+        # Lag-aware: only compare sequences the consumer has already processed.
+        # This prevents false 100% loss reports when the consumer is catching up.
+        watermark = await self._fetch_consumer_watermark(producer_id)
+        if watermark is not None and watermark > 0:
+            eligible = {s for s in sent_seqs if s <= watermark}
+            if not eligible:
+                logger.debug(
+                    "Producer %s: all %d fetched seqs exceed consumer watermark %d — skipping",
+                    producer_id, len(sent_seqs), watermark,
+                )
+                return None
+            sent_seqs = eligible
+
         seq_from = min(sent_seqs)
         seq_to = max(sent_seqs)
 
@@ -495,6 +508,41 @@ class Reconciler:
             sequences = data.get("sequences", [])
 
         return {(producer_id, seq) for seq in sequences}
+
+    async def _fetch_consumer_watermark(self, producer_id: str) -> Optional[int]:
+        """
+        GET /api/status from the Consumer and return the highest sequence number
+        that the consumer has already persisted for *producer_id*.
+
+        Returns None on any error so the caller can fall back to comparing the
+        full sent set (i.e., behave as before the lag-aware fix).
+        """
+        token = await self._ensure_consumer_token()
+        url = f"{settings.CONSUMER_API_URL}/api/status"
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+
+        try:
+            resp = await self._http.get(url, headers=headers, timeout=10.0)
+            if resp.status_code == 401:
+                self._consumer_token = ""
+                token = await self._ensure_consumer_token()
+                headers = {"Authorization": f"Bearer {token}"} if token else {}
+                resp = await self._http.get(url, headers=headers, timeout=10.0)
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            logger.warning(
+                "Consumer status %s returned HTTP %d — watermark unavailable",
+                url, exc.response.status_code,
+            )
+            return None
+        except httpx.RequestError as exc:
+            logger.warning("Network error fetching consumer status %s: %s", url, exc)
+            return None
+
+        data = resp.json()
+        last_by_producer: dict = data.get("last_sequence_by_producer", {})
+        watermark = last_by_producer.get(producer_id)
+        return int(watermark) if watermark is not None else None
 
     async def _fetch_consumer_sequences(
         self,

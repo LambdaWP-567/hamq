@@ -49,9 +49,11 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     #  Consumer instance identity
     # ------------------------------------------------------------------ #
-    # Logical name for this consumer instance (used in Prometheus labels
-    # and the /api/status response).
     CONSUMER_ID: str = "consumer-1"
+
+    # When true, the Kafka consume loop is started automatically at pod
+    # startup, so the consumer is always running after a pod restart.
+    CONSUMER_AUTOSTART: bool = False
 
     # ------------------------------------------------------------------ #
     #  SQLite persistence

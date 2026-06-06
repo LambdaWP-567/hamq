@@ -1,6 +1,8 @@
 image:
   frontend:
     enabled: false
+consumer:
+  autostart: true
 kafka:
   bootstrapServers: "hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092"
   tlsEnabled: false

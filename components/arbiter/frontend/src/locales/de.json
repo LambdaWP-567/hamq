@@ -106,5 +106,12 @@
     "retry": "Erneut versuchen",
     "close": "Schließen",
     "unknown": "Unbekannt"
+  },
+  "toast": {
+    "reconcile_ok": "Prüfung abgeschlossen — keine Lücken festgestellt",
+    "reconcile_gaps": "Alarm: {count} fehlende Sequenz(en) festgestellt!",
+    "start_ok": "Schiedsrichter gestartet",
+    "stop_ok": "Schiedsrichter gestoppt — Prüfungen pausiert",
+    "alarm_alert": "Nachrichtenverlust festgestellt!"
   }
 }

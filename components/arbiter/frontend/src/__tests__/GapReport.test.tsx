@@ -3,19 +3,23 @@ import { render, screen, waitFor } from '@testing-library/react'
 import GapReport from '../components/GapReport'
 import type { AuditSummary } from '../types'
 
+// Both mocks must return STABLE object references across renders.
+// If `t` or `api` are new objects each render, useCallback([api, t]) recreates
+// fetchAudits, which re-fires useEffect, which calls setError(null) before
+// the test can observe the error state.
+const stableT = vi.hoisted(() => (key: string) => key)
+const mockGet = vi.hoisted(() => vi.fn())
+const stableApi = vi.hoisted(() => ({ get: mockGet, post: vi.fn() }))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: stableT,
     i18n: { changeLanguage: vi.fn(), language: 'de' },
   }),
 }))
 
-const mockGet = vi.fn()
 vi.mock('../hooks/useApi', () => ({
-  useApi: () => ({
-    get: mockGet,
-    post: vi.fn(),
-  }),
+  useApi: () => stableApi,
 }))
 
 global.ResizeObserver = class {

@@ -27,89 +27,46 @@ const baseStatus: ArbiterStatus = {
   total_audits: 0,
 }
 
+const defaultProps = {
+  token: 'tok',
+  status: baseStatus,
+  onStatusChange: vi.fn(),
+  onReportReceived: vi.fn(),
+  onToast: vi.fn(),
+}
+
 describe('ReconcileControl', () => {
   it('renders without crash', () => {
-    expect(() =>
-      render(
-        <ReconcileControl
-          token="tok"
-          status={baseStatus}
-          onStatusChange={vi.fn()}
-          onReportReceived={vi.fn()}
-        />
-      )
-    ).not.toThrow()
+    expect(() => render(<ReconcileControl {...defaultProps} />)).not.toThrow()
   })
 
   it('shows controls.title via i18n (not hardcoded English)', () => {
-    render(
-      <ReconcileControl
-        token="tok"
-        status={baseStatus}
-        onStatusChange={vi.fn()}
-        onReportReceived={vi.fn()}
-      />
-    )
+    render(<ReconcileControl {...defaultProps} />)
     expect(screen.getByText('controls.title')).toBeInTheDocument()
   })
 
   it('shows reconcile_now button', () => {
-    render(
-      <ReconcileControl
-        token="tok"
-        status={baseStatus}
-        onStatusChange={vi.fn()}
-        onReportReceived={vi.fn()}
-      />
-    )
+    render(<ReconcileControl {...defaultProps} />)
     expect(screen.getByText('controls.reconcile_now')).toBeInTheDocument()
   })
 
   it('shows start button when not running', () => {
-    render(
-      <ReconcileControl
-        token="tok"
-        status={baseStatus}
-        onStatusChange={vi.fn()}
-        onReportReceived={vi.fn()}
-      />
-    )
+    render(<ReconcileControl {...defaultProps} />)
     expect(screen.getByText('controls.start')).toBeInTheDocument()
   })
 
   it('shows stop button when running', () => {
-    render(
-      <ReconcileControl
-        token="tok"
-        status={{ ...baseStatus, running: true }}
-        onStatusChange={vi.fn()}
-        onReportReceived={vi.fn()}
-      />
-    )
+    render(<ReconcileControl {...defaultProps} status={{ ...baseStatus, running: true }} />)
     expect(screen.getByText('controls.stop')).toBeInTheDocument()
   })
 
   it('shows interval label via i18n', () => {
-    render(
-      <ReconcileControl
-        token="tok"
-        status={baseStatus}
-        onStatusChange={vi.fn()}
-        onReportReceived={vi.fn()}
-      />
-    )
+    render(<ReconcileControl {...defaultProps} />)
     expect(screen.getByText('controls.interval_label')).toBeInTheDocument()
   })
 
   it('shows monitoring info when status has producers', () => {
-    render(
-      <ReconcileControl
-        token="tok"
-        status={{ ...baseStatus, producers_monitored: 2 }}
-        onStatusChange={vi.fn()}
-        onReportReceived={vi.fn()}
-      />
-    )
+    render(<ReconcileControl {...defaultProps} status={{ ...baseStatus, producers_monitored: 2 }} />)
     expect(screen.getByText('controls.monitoring_label')).toBeInTheDocument()
   })
 })

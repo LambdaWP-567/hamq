@@ -94,7 +94,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     # How often the background reconcile loop runs.
     RECONCILE_INTERVAL_S: float = Field(
-        default=10.0,
+        default=2.0,
         ge=1.0,
         description="Interval in seconds between automatic reconciliation passes"
     )

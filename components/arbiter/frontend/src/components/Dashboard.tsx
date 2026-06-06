@@ -1,12 +1,4 @@
-/**
- * Dashboard — Main arbiter view.
- *
- * Polls GET /api/status every 5 s and subscribes to the WebSocket for
- * real-time reconcile reports.  Renders summary cards, ReconcileControl,
- * GapReport (audit table), and Stats charts.
- */
-
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useApi } from '../hooks/useApi'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -20,13 +12,72 @@ import type {
   WsMessage,
 } from '../types'
 
-interface DashboardProps {
-  token: string | null
-  onLogout: () => void
+// ---------------------------------------------------------------------------
+// Toast system
+// ---------------------------------------------------------------------------
+
+interface Toast {
+  id: number
+  message: string
+  type: 'success' | 'error' | 'info'
+}
+
+let _toastId = 0
+
+function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: number) => void }) {
+  return (
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
+      {toasts.map((t) => (
+        <div
+          key={t.id}
+          className={`flex items-start gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium max-w-xs pointer-events-auto
+            transition-all duration-300
+            ${t.type === 'success' ? 'bg-green-600 text-white'
+              : t.type === 'error' ? 'bg-red-600 text-white'
+              : 'bg-gray-800 text-white'}`}
+        >
+          <span className="flex-1">{t.message}</span>
+          <button
+            onClick={() => onDismiss(t.id)}
+            className="ml-1 opacity-70 hover:opacity-100 text-lg leading-none"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
-// Small summary card component (local, not exported)
+// Alarm sound — synthesised beep via AudioContext
+// ---------------------------------------------------------------------------
+
+function playAlarm() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const frequencies = [880, 660, 880, 660]
+    let t = ctx.currentTime
+    for (const freq of frequencies) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.connect(gain)
+      gain.connect(ctx.destination)
+      osc.frequency.value = freq
+      osc.type = 'square'
+      gain.gain.setValueAtTime(0.3, t)
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18)
+      osc.start(t)
+      osc.stop(t + 0.18)
+      t += 0.2
+    }
+  } catch {
+    // AudioContext may be blocked until first user interaction — silently ignore
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Summary card
 // ---------------------------------------------------------------------------
 
 interface SummaryCardProps {
@@ -66,6 +117,11 @@ function SummaryCard({ label, value, subtext, variant = 'default' }: SummaryCard
 // Dashboard
 // ---------------------------------------------------------------------------
 
+interface DashboardProps {
+  token: string | null
+  onLogout: () => void
+}
+
 export default function Dashboard({ token, onLogout }: DashboardProps) {
   const { t, i18n } = useTranslation()
   const api = useApi(token)
@@ -75,6 +131,10 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
   const [stats, setStats] = useState<AuditStats | null>(null)
   const [wsConnected, setWsConnected] = useState(false)
   const [activeTab, setActiveTab] = useState<'gaps' | 'stats'>('gaps')
+  const [toasts, setToasts] = useState<Toast[]>([])
+
+  // Track the last report id we alarmed on to avoid repeated alarms
+  const lastAlarmedReportId = useRef<string | null>(null)
 
   const currentLang = i18n.language.startsWith('de') ? 'de' : 'en'
 
@@ -85,7 +145,23 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
   }
 
   // ---------------------------------------------------------------------------
-  // Fetch arbiter status and stats
+  // Toast helpers
+  // ---------------------------------------------------------------------------
+
+  const addToast = useCallback((message: string, type: Toast['type']) => {
+    const id = ++_toastId
+    setToasts((prev) => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 5000)
+  }, [])
+
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }, [])
+
+  // ---------------------------------------------------------------------------
+  // Data fetching
   // ---------------------------------------------------------------------------
 
   const fetchStatus = useCallback(async () => {
@@ -93,7 +169,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
       const res = await api.get<ArbiterStatus>('/api/status')
       setStatus(res.data)
     } catch {
-      // Ignore — display last known state
+      // keep last known state
     }
   }, [api])
 
@@ -102,11 +178,10 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
       const res = await api.get<AuditStats>('/api/stats')
       setStats(res.data)
     } catch {
-      // Ignore
+      // ignore
     }
   }, [api])
 
-  // Poll status every 5 seconds
   useEffect(() => {
     fetchStatus()
     fetchStats()
@@ -118,7 +193,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
   }, [fetchStatus, fetchStats])
 
   // ---------------------------------------------------------------------------
-  // WebSocket handler
+  // WebSocket — receives status updates and new reconcile reports
   // ---------------------------------------------------------------------------
 
   const handleWsMessage = useCallback((msg: WsMessage) => {
@@ -126,8 +201,20 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
       setStatus(msg.data)
     } else if (msg.type === 'report') {
       setLatestReport(msg.data)
+      // Play alarm and show toast on new report with missing messages
+      if (
+        msg.data.total_missing > 0 &&
+        msg.data.report_id !== lastAlarmedReportId.current
+      ) {
+        lastAlarmedReportId.current = msg.data.report_id
+        playAlarm()
+        addToast(
+          t('toast.reconcile_gaps').replace('{count}', String(msg.data.total_missing)),
+          'error',
+        )
+      }
     }
-  }, [])
+  }, [addToast, t])
 
   useWebSocket({
     token,
@@ -136,16 +223,24 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
   })
 
   // ---------------------------------------------------------------------------
-  // Derived values for summary cards
+  // Derived summary values
   // ---------------------------------------------------------------------------
 
-  const totalSent = latestReport?.total_sent ?? 0
+  const totalSent     = latestReport?.total_sent     ?? 0
   const totalReceived = latestReport?.total_received ?? 0
-  const totalMissing = latestReport?.total_missing ?? 0
-  const successRate =
-    totalSent > 0
-      ? ((totalSent - totalMissing) / totalSent * 100).toFixed(1)
-      : '—'
+  const totalMissing  = latestReport?.total_missing  ?? 0
+
+  // Show success rate from the live report when available; fall back to
+  // status.last_loss_rate so the card is never stuck at '—' after first login.
+  const successRate: string = (() => {
+    if (latestReport && totalSent > 0) {
+      return ((totalSent - totalMissing) / totalSent * 100).toFixed(1)
+    }
+    if (status?.last_loss_rate != null) {
+      return ((1 - status.last_loss_rate) * 100).toFixed(1)
+    }
+    return '—'
+  })()
 
   const lastReconcileLabel = status?.last_reconcile_at
     ? new Date(status.last_reconcile_at).toLocaleTimeString()
@@ -157,13 +252,12 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* ------------------------------------------------------------------ */}
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
       {/* Header */}
-      {/* ------------------------------------------------------------------ */}
       <header className="bg-gradient-to-r from-brand-700 to-brand-900 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* Icon */}
             <div className="w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
               <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round"
@@ -177,13 +271,11 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* WS connection indicator */}
             <div className="hidden sm:flex items-center gap-1.5 text-xs text-brand-200">
               <span className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-400' : 'bg-red-400'}`} />
               <span>{wsConnected ? 'Live' : t('errors.connection_lost')}</span>
             </div>
 
-            {/* Reconcile status badge */}
             {status && (
               <span className={`hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium
                 ${status.running
@@ -194,7 +286,6 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
               </span>
             )}
 
-            {/* Language toggle */}
             <button
               onClick={toggleLanguage}
               className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors"
@@ -202,7 +293,6 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
               {currentLang.toUpperCase()}
             </button>
 
-            {/* Logout */}
             <button
               onClick={onLogout}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
@@ -220,9 +310,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
         </div>
       </header>
 
-      {/* ------------------------------------------------------------------ */}
       {/* Main content */}
-      {/* ------------------------------------------------------------------ */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
 
         {/* Summary cards */}
@@ -236,7 +324,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
           <SummaryCard
             label={t('report.total_received')}
             value={totalReceived}
-            variant={totalReceived >= totalSent ? 'success' : 'warning'}
+            variant={totalReceived >= totalSent && totalSent > 0 ? 'success' : totalReceived > 0 ? 'warning' : 'default'}
           />
           <SummaryCard
             label={t('report.total_missing')}
@@ -250,14 +338,14 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
             subtext={`${t('status.total_audits')}: ${status?.total_audits ?? 0}`}
             variant={
               successRate === '—' ? 'default'
-              : parseFloat(successRate as string) >= 99.9 ? 'success'
-              : parseFloat(successRate as string) >= 95 ? 'warning'
+              : parseFloat(successRate) >= 99.9 ? 'success'
+              : parseFloat(successRate) >= 95 ? 'warning'
               : 'danger'
             }
           />
         </div>
 
-        {/* Two-column layout: ReconcileControl + latest report summary */}
+        {/* Control panel + latest report */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1">
             <ReconcileControl
@@ -265,10 +353,11 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
               status={status}
               onStatusChange={setStatus}
               onReportReceived={setLatestReport}
+              onToast={addToast}
             />
           </div>
           <div className="lg:col-span-2">
-            {latestReport && (
+            {latestReport ? (
               <div className="card h-full">
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">{t('report.title')}</h3>
                 <div className="overflow-x-auto">
@@ -293,7 +382,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
                           </td>
                           <td className={`table-cell tabular-nums font-semibold ${
                             p.loss_rate === 0 ? 'text-green-600'
-                            : p.loss_rate < 5 ? 'text-yellow-600'
+                            : p.loss_rate < 0.05 ? 'text-yellow-600'
                             : 'text-red-600'
                           }`}>
                             {(p.loss_rate * 100).toFixed(2)}%
@@ -307,8 +396,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
                   {t('report.duration')}: {latestReport.duration_ms}{t('report.ms')}
                 </p>
               </div>
-            )}
-            {!latestReport && (
+            ) : (
               <div className="card flex items-center justify-center h-40 text-gray-400 text-sm">
                 {t('report.no_report')}
               </div>

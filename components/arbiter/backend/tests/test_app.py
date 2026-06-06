@@ -246,26 +246,37 @@ async def test_audit_store_get_history_filter_by_producer(audit_store):
 # Test 4: Reconciler — missing sequence computation
 # ---------------------------------------------------------------------------
 
+def _consumer_status_body(producer_id: str, watermark: int) -> dict:
+    """Build a minimal ConsumerStatus JSON with last_sequence_by_producer."""
+    return {
+        "consumer_id": "consumer-1",
+        "running": True,
+        "kafka_connected": True,
+        "received_count": watermark,
+        "last_sequence_by_producer": {producer_id: watermark},
+        "lag_estimate": 0,
+        "checksum_errors": 0,
+    }
+
+
 @pytest.mark.asyncio
 async def test_reconciler_missing_sequences(audit_store):
     """
     Unit test for the reconciler's set-difference logic.
 
     Given:
-      - Producer sent sequences {1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
-      - Consumer received sequences {1, 2, 3, 5, 6, 7, 8, 9, 10}
+      - Producer sent sequences {1..10}; consumer watermark = 10
+      - Consumer is missing sequence 4
     Expected:
-      - missing = {4}
-      - loss_rate = 1/10 = 0.1
+      - missing = {4}, loss_rate = 1/10 = 0.1
     """
-    # Mock the HTTP client responses
     producer_response_body = {
         "producer_id": "producer-test",
-        "sequences": list(range(1, 11)),  # 1..10
+        "sequences": list(range(1, 11)),
         "total": 10,
     }
-    # Consumer is missing sequence 4
-    consumer_response_body = {
+    consumer_status = _consumer_status_body("producer-test", watermark=10)
+    consumer_missing_body = {
         "producer_id": "producer-test",
         "missing": [4],
         "checked_range": [1, 10],
@@ -274,11 +285,14 @@ async def test_reconciler_missing_sequences(audit_store):
     mock_http = AsyncMock()
     mock_http.get = AsyncMock(side_effect=[
         _mock_response(200, producer_response_body),
-        _mock_response(200, consumer_response_body),
+        _mock_response(200, consumer_status),
+        _mock_response(200, consumer_missing_body),
     ])
 
     reconciler = Reconciler(audit_store)
     reconciler._http = mock_http
+    reconciler._producer_token = "test-token"
+    reconciler._consumer_token = "test-token"
 
     result = await reconciler._reconcile_producer(
         "http://mock-producer:8000",
@@ -300,11 +314,11 @@ async def test_reconciler_no_missing(audit_store):
     """
     producer_response_body = {
         "producer_id": "producer-perfect",
-        "sequences": list(range(1, 6)),  # 1..5
+        "sequences": list(range(1, 6)),
         "total": 5,
     }
-    # Consumer reports no missing sequences
-    consumer_response_body = {
+    consumer_status = _consumer_status_body("producer-perfect", watermark=5)
+    consumer_missing_body = {
         "producer_id": "producer-perfect",
         "missing": [],
         "checked_range": [1, 5],
@@ -313,11 +327,14 @@ async def test_reconciler_no_missing(audit_store):
     mock_http = AsyncMock()
     mock_http.get = AsyncMock(side_effect=[
         _mock_response(200, producer_response_body),
-        _mock_response(200, consumer_response_body),
+        _mock_response(200, consumer_status),
+        _mock_response(200, consumer_missing_body),
     ])
 
     reconciler = Reconciler(audit_store)
     reconciler._http = mock_http
+    reconciler._producer_token = "test-token"
+    reconciler._consumer_token = "test-token"
 
     result = await reconciler._reconcile_producer(
         "http://mock-producer:8000",
@@ -329,6 +346,131 @@ async def test_reconciler_no_missing(audit_store):
     assert result.missing_sequences == []
     assert result.loss_rate == pytest.approx(0.0)
     assert result.status == "ok"
+
+
+@pytest.mark.asyncio
+async def test_reconciler_lag_aware_skips_when_all_ahead(audit_store):
+    """
+    Lag-aware: when ALL producer sequences are ahead of the consumer watermark,
+    the reconciler must return None (skip) instead of reporting 100% loss.
+
+    Scenario: producer sent seqs [101, 102, 103]; consumer watermark = 100.
+    """
+    producer_response_body = {
+        "producer_id": "producer-lag",
+        "sequences": [101, 102, 103],
+        "total": 3,
+    }
+    # Consumer has only processed up to seq 100 for this producer
+    consumer_status = _consumer_status_body("producer-lag", watermark=100)
+
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(side_effect=[
+        _mock_response(200, producer_response_body),
+        _mock_response(200, consumer_status),
+    ])
+
+    reconciler = Reconciler(audit_store)
+    reconciler._http = mock_http
+    reconciler._producer_token = "test-token"
+    reconciler._consumer_token = "test-token"
+
+    result = await reconciler._reconcile_producer(
+        "http://mock-producer:8000",
+        datetime.now(timezone.utc).isoformat(),
+    )
+
+    # All fetched seqs (101-103) are above watermark (100) → skip
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_reconciler_lag_aware_filters_to_watermark(audit_store):
+    """
+    Lag-aware: when only some producer sequences are within the consumer
+    watermark, the reconciler compares only those sequences.
+
+    Scenario: producer sent seqs [8, 9, 10, 11, 12]; consumer watermark = 10.
+    Consumer is missing seq 9.  Only seqs [8, 9, 10] are eligible.
+    Expected: missing = [9], sent_count = 3, loss_rate = 1/3.
+    """
+    producer_response_body = {
+        "producer_id": "producer-partial",
+        "sequences": [8, 9, 10, 11, 12],
+        "total": 5,
+    }
+    consumer_status = _consumer_status_body("producer-partial", watermark=10)
+    # Consumer reports seq 9 as missing in range [8, 10]
+    consumer_missing_body = {
+        "producer_id": "producer-partial",
+        "missing": [9],
+        "checked_range": [8, 10],
+    }
+
+    mock_http = AsyncMock()
+    mock_http.get = AsyncMock(side_effect=[
+        _mock_response(200, producer_response_body),
+        _mock_response(200, consumer_status),
+        _mock_response(200, consumer_missing_body),
+    ])
+
+    reconciler = Reconciler(audit_store)
+    reconciler._http = mock_http
+    reconciler._producer_token = "test-token"
+    reconciler._consumer_token = "test-token"
+
+    result = await reconciler._reconcile_producer(
+        "http://mock-producer:8000",
+        datetime.now(timezone.utc).isoformat(),
+    )
+
+    assert result is not None
+    assert result.sent_count == 3          # only seqs 8, 9, 10
+    assert result.missing_count == 1
+    assert 9 in result.missing_sequences
+    assert result.loss_rate == pytest.approx(1 / 3)
+
+
+@pytest.mark.asyncio
+async def test_reconciler_lag_aware_watermark_unavailable(audit_store):
+    """
+    When the consumer status endpoint is unreachable, the reconciler falls back
+    to comparing all fetched sequences (no filtering).
+    """
+    producer_response_body = {
+        "producer_id": "producer-fallback",
+        "sequences": list(range(1, 6)),
+        "total": 5,
+    }
+    consumer_missing_body = {
+        "producer_id": "producer-fallback",
+        "missing": [],
+        "checked_range": [1, 5],
+    }
+
+    mock_http = AsyncMock()
+    # Status call fails (network error), missing call succeeds
+    from httpx import RequestError
+    mock_http.get = AsyncMock(side_effect=[
+        _mock_response(200, producer_response_body),
+        RequestError("timeout"),
+        _mock_response(200, consumer_missing_body),
+    ])
+
+    reconciler = Reconciler(audit_store)
+    reconciler._http = mock_http
+    reconciler._producer_token = "test-token"
+    reconciler._consumer_token = "test-token"
+
+    result = await reconciler._reconcile_producer(
+        "http://mock-producer:8000",
+        datetime.now(timezone.utc).isoformat(),
+    )
+
+    # Falls back to full set — no false skip
+    assert result is not None
+    assert result.sent_count == 5
+    assert result.missing_count == 0
 
 
 # ---------------------------------------------------------------------------

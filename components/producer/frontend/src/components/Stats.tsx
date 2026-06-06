@@ -112,7 +112,12 @@ export default function Stats({ rateHistory, status }: StatsProps) {
               interval="preserveStartEnd"
               stroke="#9ca3af"
             />
-            <YAxis tick={{ fontSize: 10 }} stroke="#9ca3af" allowDecimals={false} />
+            <YAxis
+              tick={{ fontSize: 10 }}
+              stroke="#9ca3af"
+              allowDecimals={false}
+              domain={[0, (dataMax: number) => Math.max(dataMax, Math.ceil((status?.frequency_hz ?? 0) * 1.2))]}
+            />
             <Tooltip
               contentStyle={{ fontSize: '12px' }}
               formatter={(value: number) => [value.toLocaleString(), 'msg/s']}
