@@ -82,6 +82,30 @@ class Settings(BaseSettings):
     )
 
     # -------------------------------------------------------------------------
+    # HAMq component API URLs (for databus metrics aggregation)
+    # -------------------------------------------------------------------------
+    PRODUCER_API_URL: str = Field(
+        default="http://hamq-producer.hamq.svc.cluster.local:8000",
+        description="Base URL of the producer FastAPI service"
+    )
+    CONSUMER_API_URL: str = Field(
+        default="http://hamq-consumer.hamq.svc.cluster.local:8001",
+        description="Base URL of the consumer FastAPI service"
+    )
+    DATABUS_POLL_TIMEOUT_S: float = Field(
+        default=2.0,
+        description="HTTP timeout in seconds when fetching producer/consumer metrics"
+    )
+    DATABUS_AUTH_USERNAME: str = Field(
+        default="admin",
+        description="Username for basic-auth against the producer/consumer APIs"
+    )
+    DATABUS_AUTH_PASSWORD: str = Field(
+        default="admin",
+        description="Password for basic-auth against the producer/consumer APIs"
+    )
+
+    # -------------------------------------------------------------------------
     # Controller identity and persistence
     # -------------------------------------------------------------------------
     CONTROLLER_ID: str = Field(

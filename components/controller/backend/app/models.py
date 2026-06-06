@@ -170,6 +170,24 @@ class ChaosConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Databus metrics model
+# ---------------------------------------------------------------------------
+
+class DataBusMetrics(BaseModel):
+    """
+    Live metrics scraped from the producer and consumer APIs.
+    Included in every ControllerStatus so the dashboard can render
+    message-flow charts without a separate request.
+    """
+    lag: int = Field(default=0, description="Messages on the bus (consumer lag_estimate)")
+    producer_rate: float = Field(default=0.0, description="Producer EMA messages/second")
+    producer_sent: int = Field(default=0, description="Cumulative producer sent count")
+    consumer_received: int = Field(default=0, description="Cumulative consumer received count")
+    producer_available: bool = Field(default=False)
+    consumer_available: bool = Field(default=False)
+
+
+# ---------------------------------------------------------------------------
 # Status aggregate model
 # ---------------------------------------------------------------------------
 
@@ -205,6 +223,10 @@ class ControllerStatus(BaseModel):
     chaos_enabled: bool = Field(
         default=True,
         description="Whether the chaos engine is globally enabled"
+    )
+    databus: DataBusMetrics = Field(
+        default_factory=DataBusMetrics,
+        description="Live producer/consumer metrics for dashboard charts"
     )
 
 

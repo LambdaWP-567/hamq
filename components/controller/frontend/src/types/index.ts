@@ -73,6 +73,19 @@ export interface ClusterEvent {
 }
 
 // ---------------------------------------------------------------------------
+// Databus metrics
+// ---------------------------------------------------------------------------
+
+export interface DataBusMetrics {
+  lag: number
+  producer_rate: number
+  producer_sent: number
+  consumer_received: number
+  producer_available: boolean
+  consumer_available: boolean
+}
+
+// ---------------------------------------------------------------------------
 // Status aggregate
 // ---------------------------------------------------------------------------
 
@@ -84,6 +97,7 @@ export interface ControllerStatus {
   active_partitions: NetworkPolicyInfo[]
   recent_events: ClusterEvent[]
   chaos_enabled: boolean
+  databus: DataBusMetrics
 }
 
 // ---------------------------------------------------------------------------

@@ -50,10 +50,13 @@ from app.metrics import (
     kafka_pods_ready_gauge,
     nodes_schedulable_gauge,
 )
+import httpx
+
 from app.models import (
     ChaosConfig,
     ClusterEvent,
     ControllerStatus,
+    DataBusMetrics,
     LoginRequest,
     NetworkPartitionRequest,
     NodeInfo,
@@ -64,6 +67,59 @@ from app.models import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# ---------------------------------------------------------------------------
+# Databus metrics helper
+# ---------------------------------------------------------------------------
+
+async def _fetch_databus_metrics(cfg) -> DataBusMetrics:
+    """Fetch producer + consumer status with a short timeout; never raises."""
+    auth = (cfg.DATABUS_AUTH_USERNAME, cfg.DATABUS_AUTH_PASSWORD)
+    timeout = cfg.DATABUS_POLL_TIMEOUT_S
+
+    producer_sent = 0
+    producer_rate = 0.0
+    producer_ok = False
+    consumer_received = 0
+    consumer_lag = 0
+    consumer_ok = False
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            r = await client.get(
+                f"{cfg.PRODUCER_API_URL}/api/v1/producer/status",
+                auth=auth,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                producer_sent = data.get("sent_count", 0)
+                producer_rate = data.get("messages_per_second", 0.0)
+                producer_ok = True
+        except Exception:
+            pass
+
+        try:
+            r = await client.get(
+                f"{cfg.CONSUMER_API_URL}/api/status",
+                auth=auth,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                consumer_received = data.get("received_count", 0)
+                consumer_lag = data.get("lag_estimate", 0)
+                consumer_ok = True
+        except Exception:
+            pass
+
+    return DataBusMetrics(
+        lag=consumer_lag,
+        producer_rate=producer_rate,
+        producer_sent=producer_sent,
+        consumer_received=consumer_received,
+        producer_available=producer_ok,
+        consumer_available=consumer_ok,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -155,11 +211,12 @@ async def get_status(
     store: EventStore = _get_store(request)
     cfg = _get_settings(request)
 
-    kafka_pods, nodes, partitions, recent_events = await asyncio.gather(
+    kafka_pods, nodes, partitions, recent_events, databus = await asyncio.gather(
         k8s.list_pods(cfg.KAFKA_NAMESPACE, cfg.KAFKA_POD_LABEL_SELECTOR),
         k8s.list_nodes(),
         k8s.list_network_policies(cfg.KAFKA_NAMESPACE),
         store.get_events(limit=20),
+        _fetch_databus_metrics(cfg),
     )
 
     # Update Prometheus gauges while we have fresh data
@@ -175,6 +232,7 @@ async def get_status(
         active_partitions=partitions,
         recent_events=recent_events,
         chaos_enabled=cfg.CHAOS_ENABLED,
+        databus=databus,
     )
 
 
@@ -561,12 +619,13 @@ async def websocket_endpoint(
 
     try:
         while True:
-            # Gather fresh cluster state
-            kafka_pods, nodes, partitions, recent_events = await asyncio.gather(
+            # Gather fresh cluster state + databus metrics in parallel
+            kafka_pods, nodes, partitions, recent_events, databus = await asyncio.gather(
                 k8s.list_pods(cfg.KAFKA_NAMESPACE, cfg.KAFKA_POD_LABEL_SELECTOR),
                 k8s.list_nodes(),
                 k8s.list_network_policies(cfg.KAFKA_NAMESPACE),
                 store.get_events(limit=20),
+                _fetch_databus_metrics(cfg),
             )
 
             status_msg = ControllerStatus(
@@ -577,6 +636,7 @@ async def websocket_endpoint(
                 active_partitions=partitions,
                 recent_events=recent_events,
                 chaos_enabled=cfg.CHAOS_ENABLED,
+                databus=databus,
             )
 
             await websocket.send_text(status_msg.model_dump_json())

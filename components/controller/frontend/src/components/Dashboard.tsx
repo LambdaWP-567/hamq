@@ -6,7 +6,7 @@
  * Real-time status is streamed via WebSocket from the backend.
  */
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Activity, Server, Zap, Network, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react'
 import clsx from 'clsx'
@@ -19,6 +19,7 @@ import NodeControl from './NodeControl'
 import ChaosControl from './ChaosControl'
 import NetworkControl from './NetworkControl'
 import LanguageSwitcher from './LanguageSwitcher'
+import DataBusCharts, { type DataBusPoint } from './DataBusCharts'
 
 type TabId = 'pods' | 'nodes' | 'chaos' | 'network'
 
@@ -46,6 +47,15 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState<string | null>(null)
 
+  // Databus chart history (last 60 points ≈ 5 min at 5s WS interval)
+  const [dataBusHistory, setDataBusHistory] = useState<DataBusPoint[]>([])
+  const prevLagRef       = useRef<number | null>(null)
+  const prevProdRateRef  = useRef<number | null>(null)
+  const prevReadRateRef  = useRef<number | null>(null)
+  const [lagTrend,      setLagTrend]      = useState<'up' | 'down' | 'stable'>('stable')
+  const [producerTrend, setProducerTrend] = useState<'up' | 'down' | 'stable'>('stable')
+  const [readTrend,     setReadTrend]     = useState<'up' | 'down' | 'stable'>('stable')
+
   const fetchStatus = useCallback(async () => {
     try {
       const data = await api.getStatus()
@@ -71,6 +81,52 @@ const Dashboard: React.FC = () => {
       setStatus(lastMessage)
     }
   }, [lastMessage])
+
+  // Build databus chart history and compute trends on each status update
+  useEffect(() => {
+    if (!status?.databus) return
+    const db = status.databus
+    const label = new Date().toLocaleTimeString('en-GB', {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    })
+
+    setDataBusHistory(prev => {
+      const lastReceived = prev.length > 0
+        ? prev[prev.length - 1]!.consumerReceived
+        : db.consumer_received
+      const readRate = Math.max(0, db.consumer_received - lastReceived)
+      const point: DataBusPoint = {
+        time: label,
+        lag: db.lag,
+        producerRate: db.producer_rate,
+        readRate,
+        consumerReceived: db.consumer_received,
+      }
+      const next = [...prev, point]
+      return next.length > 60 ? next.slice(next.length - 60) : next
+    })
+
+    // Trend: ±2 threshold to filter noise
+    const threshold = 2
+    if (prevLagRef.current !== null) {
+      const d = db.lag - prevLagRef.current
+      setLagTrend(d > threshold ? 'up' : d < -threshold ? 'down' : 'stable')
+    }
+    prevLagRef.current = db.lag
+
+    if (prevProdRateRef.current !== null) {
+      const d = db.producer_rate - prevProdRateRef.current
+      setProducerTrend(d > threshold ? 'up' : d < -threshold ? 'down' : 'stable')
+    }
+    prevProdRateRef.current = db.producer_rate
+
+    if (prevReadRateRef.current !== null) {
+      // read rate computed from consumer_received delta; compare via producer_rate proxy
+      const d = db.consumer_received - prevReadRateRef.current
+      setReadTrend(d > threshold ? 'up' : d < -threshold ? 'down' : 'stable')
+    }
+    prevReadRateRef.current = db.consumer_received
+  }, [status])
 
   const podCount  = status?.kafka_pods?.length  ?? 0
   const nodeCount = status?.nodes?.length        ?? 0
@@ -156,6 +212,15 @@ const Dashboard: React.FC = () => {
             {error}
           </div>
         )}
+
+        {/* ── Databus Charts ────────────────────────────────────── */}
+        <DataBusCharts
+          history={dataBusHistory}
+          latest={status?.databus ?? null}
+          lagTrend={lagTrend}
+          producerTrend={producerTrend}
+          readTrend={readTrend}
+        />
 
         {/* ── Tab Navigation ────────────────────────────────────── */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">

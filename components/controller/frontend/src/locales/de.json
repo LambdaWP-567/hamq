@@ -139,5 +139,11 @@
     "darkMode": "Dunkelmodus",
     "lightMode": "Hellmodus",
     "language": "Sprache"
+  },
+  "databus": {
+    "lag": "Nachrichten im Bus",
+    "incoming": "Eingehend msg/s",
+    "read": "Gelesen msg/s",
+    "msg": "msg"
   }
 }

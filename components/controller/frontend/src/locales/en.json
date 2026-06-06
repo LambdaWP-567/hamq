@@ -139,5 +139,11 @@
     "darkMode": "Dark Mode",
     "lightMode": "Light Mode",
     "language": "Language"
+  },
+  "databus": {
+    "lag": "Messages on Bus",
+    "incoming": "Incoming msg/s",
+    "read": "Read msg/s",
+    "msg": "msg"
   }
 }
