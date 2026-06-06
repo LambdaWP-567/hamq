@@ -42,7 +42,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.auth.secretName }}
                   key: {{ .Values.auth.secretKeyUsername }}
-            - name: AUTH_PASSWORD
+            - name: AUTH_PASSWORD_HASH
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.auth.secretName }}
