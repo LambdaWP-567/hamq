@@ -247,9 +247,11 @@ users:
 package_update: true
 packages:
   - curl
+  - qemu-guest-agent
 
 runcmd:
   - systemctl enable --now ssh
+  - systemctl enable --now qemu-guest-agent
   - echo "$(date): cloud-init done on ${vmname}" >> /var/log/k3s-provision.log
 EOF
   log "[$vmname]   user-data written ($(wc -l < "${ci_dir}/user-data") lines)"

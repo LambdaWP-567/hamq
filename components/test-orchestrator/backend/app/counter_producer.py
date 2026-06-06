@@ -22,6 +22,7 @@ class CounterProducer:
         self.sent_counter: int = 0
         self.total_sent: int = 0
         self.send_rate: float = 0.0
+        self.freq_hz: float = 10.0
 
         self._rate_window_count: int = 0
         self._rate_window_start: float = time.monotonic()
@@ -44,17 +45,17 @@ class CounterProducer:
             ssl_context=ssl_context,
             security_protocol="SSL" if settings.KAFKA_TLS_ENABLED else "PLAINTEXT",
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-            acks="all",
-            enable_idempotence=True,
+            acks=1,
         )
 
     async def start(self, freq_hz: float, counter_max: int) -> None:
         if self._running:
             return
         self._running = True
+        self.freq_hz = freq_hz
         self._producer = await self._build_producer()
         await self._producer.start()
-        self._task = asyncio.create_task(self._loop(freq_hz, counter_max))
+        self._task = asyncio.create_task(self._loop(counter_max))
         logger.info("CounterProducer started (freq=%.1f Hz, max=%d)", freq_hz, counter_max)
 
     async def stop(self) -> None:
@@ -71,17 +72,19 @@ class CounterProducer:
             self._producer = None
         logger.info("CounterProducer stopped")
 
-    async def _loop(self, freq_hz: float, counter_max: int) -> None:
+    async def _loop(self, counter_max: int) -> None:
         counter = self.sent_counter if self.sent_counter > 0 else 1
-        interval = 1.0 / max(freq_hz, 0.1)
 
         while self._running:
+            interval = 1.0 / max(self.freq_hz, 0.1)
+            t_start = time.monotonic()
+
             msg = {
                 "counter": counter,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             try:
-                await self._producer.send_and_wait(settings.KAFKA_TOPIC, msg)
+                await self._producer.send(settings.KAFKA_TOPIC, msg)
                 self.sent_counter = counter
                 self.total_sent += 1
                 self._rate_window_count += 1
@@ -96,4 +99,7 @@ class CounterProducer:
             except Exception as exc:
                 logger.warning("Send error: %s", exc)
 
-            await asyncio.sleep(interval)
+            elapsed = time.monotonic() - t_start
+            sleep_for = max(0.0, interval - elapsed)
+            if sleep_for > 0:
+                await asyncio.sleep(sleep_for)

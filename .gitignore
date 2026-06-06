@@ -28,3 +28,6 @@ coverage.xml
 
 # Cluster credentials — never commit
 infra/kubeconfig
+
+# Graphify cache (keep graph.json and GRAPH_REPORT.md)
+graphify-out/cache/

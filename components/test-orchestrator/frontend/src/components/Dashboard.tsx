@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Zap, Play, Square, AlertTriangle } from 'lucide-react'
+import { Zap, Play, Square, AlertTriangle, Info } from 'lucide-react'
 import clsx from 'clsx'
 import { useApi } from '../hooks/useApi'
 import { useWebSocket } from '../hooks/useWebSocket'
@@ -26,9 +26,10 @@ interface OrchestratorStatus {
   total_received: number
   recv_rate: number
   counter_max: number
+  freq_hz: number
   missing_count: number
   completion_pct: number
-  missing_sample: number[]
+  missing_sample: { number: number; first_seen: string }[]
   history: HistoryPoint[]
 }
 
@@ -47,6 +48,15 @@ export default function Dashboard({ token, onLogout }: Props) {
   const [actionPending, setActionPending] = useState(false)
   const [freqHz, setFreqHz] = useState(10)
   const [counterMax, setCounterMax] = useState(10000)
+  const freqDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleFreqChange = (val: number) => {
+    setFreqHz(val)
+    if (freqDebounce.current) clearTimeout(freqDebounce.current)
+    freqDebounce.current = setTimeout(() => {
+      void api.updateConfig(val, undefined)
+    }, 300)
+  }
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -167,13 +177,18 @@ export default function Dashboard({ token, onLogout }: Props) {
 
           <div className="flex items-center gap-2 ml-2">
             <label className="text-sm text-gray-600 dark:text-gray-400">{t('controls.freq')}:</label>
+            <span className="relative group cursor-default">
+              <Info className="w-3.5 h-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" />
+              <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg bg-gray-900 text-white text-xs px-3 py-2 opacity-0 group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+                Anzahl Nachrichten, die der Producer pro Sekunde an Kafka sendet. Kann live während des Tests geändert werden.
+              </span>
+            </span>
             <input
               type="range"
               min={1}
               max={100}
               value={freqHz}
-              onChange={e => setFreqHz(Number(e.target.value))}
-              disabled={running}
+              onChange={e => handleFreqChange(Number(e.target.value))}
               className="w-28 accent-violet-600"
             />
             <span className="text-sm font-mono text-gray-700 dark:text-gray-300 w-16">
@@ -250,6 +265,8 @@ export default function Dashboard({ token, onLogout }: Props) {
           history={status?.history ?? []}
           missingSample={status?.missing_sample ?? []}
           missingCount={status?.missing_count ?? 0}
+          counterMax={status?.counter_max ?? 10000}
+          freqHz={status?.freq_hz ?? freqHz}
         />
       </main>
     </div>

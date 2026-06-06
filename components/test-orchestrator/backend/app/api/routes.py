@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, Query
 
 from app.auth import get_current_user, login_for_access_token
 from app.config import settings
-from app.models import ConfigUpdate, LoginRequest, OrchestratorStatus, TokenResponse
+from app.models import ConfigUpdate, LoginRequest, MissingEntry, OrchestratorStatus, TokenResponse
 
 router = APIRouter()
 
@@ -54,6 +54,7 @@ async def start_test(request: Request, _: str = Depends(get_current_user)) -> di
     state.cons.total_received = 0
     state.cons.recv_rate = 0.0
     state.history.clear()
+    state.history_tick = 0
     await state.prod.start(freq, max_val)
     await state.cons.start()
     return {"ok": True}
@@ -79,6 +80,7 @@ async def update_config(
     state = request.app.state
     if body.freq_hz is not None:
         state.freq_hz = max(0.1, min(body.freq_hz, 1000.0))
+        state.prod.freq_hz = state.freq_hz
     if body.counter_max is not None:
         state.counter_max = max(10, body.counter_max)
     return {"freq_hz": state.freq_hz, "counter_max": state.counter_max}
@@ -132,9 +134,12 @@ def _build_status(req) -> OrchestratorStatus:
         "missing_count": len(missing),
     }
     history: list = state.history
-    history.append(point)
-    if len(history) > 60:
-        history.pop(0)
+    if state.running:
+        state.history_tick += 1
+        if state.history_tick % 4 == 0:
+            history.append(point)
+            if len(history) > 30:
+                history.pop(0)
 
     return OrchestratorStatus(
         running=state.running,
@@ -146,8 +151,9 @@ def _build_status(req) -> OrchestratorStatus:
         total_received=cons.total_received,
         recv_rate=round(cons.recv_rate, 2),
         counter_max=state.counter_max,
+        freq_hz=state.freq_hz,
         missing_count=len(missing),
         completion_pct=round(judge.completion_pct(), 1),
-        missing_sample=missing[:20],
-        history=history[-60:],
+        missing_sample=[MissingEntry(number=n, first_seen=ts) for n, ts in judge.missing_with_timestamps()[:20]],
+        history=history[-30:],
     )

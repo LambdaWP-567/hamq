@@ -75,3 +75,27 @@ spec:
     min.insync.replicas: {{ .Values.kafka.config.minInsyncReplicas | quote }}
 
     cleanup.policy: "delete"
+
+{{- if .Values.topics.testCounter }}
+---
+# =============================================================================
+# Test Orchestrator counter topic
+# =============================================================================
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: {{ .Values.topics.testCounter.name }}
+  namespace: {{ .Values.global.namespace }}
+  labels:
+    strimzi.io/cluster: {{ .Values.kafka.name }}
+    app.kubernetes.io/name: {{ .Values.topics.testCounter.name }}
+    app.kubernetes.io/component: kafka-topic
+    app.kubernetes.io/managed-by: Helm
+spec:
+  partitions: {{ .Values.topics.testCounter.partitions }}
+  replicas: {{ .Values.topics.testCounter.replicas }}
+  config:
+    retention.ms: "604800000"
+    min.insync.replicas: {{ .Values.topics.testCounter.config.minInsyncReplicas | quote }}
+    cleanup.policy: "delete"
+{{- end }}

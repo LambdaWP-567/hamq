@@ -23,6 +23,11 @@ class HistoryPoint(BaseModel):
     missing_count: int
 
 
+class MissingEntry(BaseModel):
+    number: int
+    first_seen: str
+
+
 class OrchestratorStatus(BaseModel):
     running: bool
     cycle: int
@@ -36,9 +41,10 @@ class OrchestratorStatus(BaseModel):
     recv_rate: float
     # judge
     counter_max: int
+    freq_hz: float
     missing_count: int
     completion_pct: float
-    missing_sample: list[int]
+    missing_sample: list[MissingEntry]
     # chart history
     history: list[HistoryPoint]
 

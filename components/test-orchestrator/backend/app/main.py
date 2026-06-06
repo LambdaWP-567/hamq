@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.freq_hz = settings.FREQ_HZ
     app.state.counter_max = settings.COUNTER_MAX
     app.state.history = []
+    app.state.history_tick = 0
 
     if settings.AUTOSTART:
         logger.info("AUTOSTART=true — starting test immediately")
