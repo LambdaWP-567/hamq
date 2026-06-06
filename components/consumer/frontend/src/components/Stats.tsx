@@ -40,10 +40,11 @@ interface StatsProps {
   rateHistory: ReceiveRatePoint[]
   status: ConsumerStatus | null
   receivedAtReset?: number
+  lagTrend?: 'up' | 'down' | 'stable'
   onReset?: () => void
 }
 
-export default function Stats({ rateHistory, status, receivedAtReset = 0, onReset }: StatsProps) {
+export default function Stats({ rateHistory, status, receivedAtReset = 0, lagTrend = 'stable', onReset }: StatsProps) {
   const { t } = useTranslation()
   const histogram = useMemo(() => buildHistogram(rateHistory), [rateHistory])
   const displayReceived = Math.max(0, (status?.received_count ?? 0) - receivedAtReset)
@@ -90,16 +91,25 @@ export default function Stats({ rateHistory, status, receivedAtReset = 0, onRese
             {t('status.lag')}
             <InfoTooltip text={`${t('tooltips.lag')} (${t('tooltips.lag_unit')})`} />
           </p>
-          <p className={`mt-1 text-2xl font-bold tabular-nums ${
-            (status?.lag_estimate ?? 0) > 1000
-              ? 'text-yellow-800 dark:text-yellow-300'
-              : 'text-gray-800 dark:text-gray-200'
-          }`}>
-            {(status?.lag_estimate ?? 0).toLocaleString()}
-            <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
-              {t('tooltips.lag_unit')}
+          <div className="mt-1 flex items-baseline gap-1.5">
+            <p className={`text-2xl font-bold tabular-nums ${
+              (status?.lag_estimate ?? 0) > 1000
+                ? 'text-yellow-800 dark:text-yellow-300'
+                : 'text-gray-800 dark:text-gray-200'
+            }`}>
+              {(status?.lag_estimate ?? 0).toLocaleString()}
+              <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+                {t('tooltips.lag_unit')}
+              </span>
+            </p>
+            <span className={`text-base font-bold leading-none select-none ${
+              lagTrend === 'up'     ? 'text-red-500'
+              : lagTrend === 'down' ? 'text-green-500'
+              : 'text-gray-300 dark:text-gray-600'
+            }`}>
+              {lagTrend === 'up' ? '↑' : lagTrend === 'down' ? '↓' : '→'}
             </span>
-          </p>
+          </div>
         </div>
       </div>
 

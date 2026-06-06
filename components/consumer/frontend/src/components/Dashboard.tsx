@@ -32,6 +32,8 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
   const [actionError, setActionError] = useState<string | null>(null)
   const [actionPending, setActionPending] = useState(false)
   const [receivedAtReset, setReceivedAtReset] = useState(0)
+  const prevLagRef = useRef<number | null>(null)
+  const [lagTrend, setLagTrend] = useState<'up' | 'down' | 'stable'>('stable')
 
   // ------------------------------------------------------------------
   // WebSocket: handle real-time status updates
@@ -123,6 +125,20 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
       setActionPending(false)
     }
   }, [api, status, t])
+
+  // ------------------------------------------------------------------
+  // Lag trend: compare current lag to previous to get up/down/stable
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    const current = status?.lag_estimate ?? 0
+    if (prevLagRef.current !== null) {
+      const diff = current - prevLagRef.current
+      if (diff > 5) setLagTrend('up')
+      else if (diff < -5) setLagTrend('down')
+      else setLagTrend('stable')
+    }
+    prevLagRef.current = current
+  }, [status?.lag_estimate])
 
   // ------------------------------------------------------------------
   // Reset stats
@@ -222,7 +238,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
             </p>
           </div>
 
-          {/* Consumer lag — with unit + tooltip */}
+          {/* Consumer lag — with trend arrow + tooltip */}
           <div className={`bg-white dark:bg-gray-800 rounded-xl border shadow-sm p-4 border-l-4
             ${lagVariant === 'warning'
               ? 'border-yellow-200 dark:border-yellow-700'
@@ -231,16 +247,25 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
               {t('status.lag')}
               <InfoTooltip text={t('tooltips.lag')} />
             </p>
-            <p className={`mt-1 text-2xl font-bold tabular-nums ${
-              lagVariant === 'warning'
-                ? 'text-yellow-700 dark:text-yellow-400'
-                : 'text-gray-800 dark:text-gray-200'
-            }`}>
-              {(status?.lag_estimate ?? 0).toLocaleString()}
-              <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
-                {t('tooltips.lag_unit')}
+            <div className="mt-1 flex items-baseline gap-2">
+              <p className={`text-2xl font-bold tabular-nums ${
+                lagVariant === 'warning'
+                  ? 'text-yellow-700 dark:text-yellow-400'
+                  : 'text-gray-800 dark:text-gray-200'
+              }`}>
+                {(status?.lag_estimate ?? 0).toLocaleString()}
+                <span className="ml-1 text-xs font-normal text-gray-500 dark:text-gray-400">
+                  {t('tooltips.lag_unit')}
+                </span>
+              </p>
+              <span className={`text-lg font-bold leading-none select-none ${
+                lagTrend === 'up'     ? 'text-red-500'
+                : lagTrend === 'down' ? 'text-green-500'
+                : 'text-gray-300 dark:text-gray-600'
+              }`} title={lagTrend === 'up' ? 'Lag increasing' : lagTrend === 'down' ? 'Lag decreasing' : 'Lag stable'}>
+                {lagTrend === 'up' ? '↑' : lagTrend === 'down' ? '↓' : '→'}
               </span>
-            </p>
+            </div>
           </div>
 
           {/* Checksum errors — with tooltip */}
@@ -325,6 +350,7 @@ export default function Dashboard({ token, onLogout }: DashboardProps) {
             rateHistory={rateHistory}
             status={status}
             receivedAtReset={receivedAtReset}
+            lagTrend={lagTrend}
             onReset={handleReset}
           />
           <MessageLog messages={messages} />
