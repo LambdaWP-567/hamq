@@ -1,28 +1,347 @@
-# HAMq — Production Deployment Guide
-
-This guide covers multi-cluster production deployment, TLS certificate configuration, environment variable reference, and troubleshooting.
+# HAMq — Deployment Guide
 
 ---
 
-## Table of Contents
+## Contents
 
-- [Multi-Cluster Setup](#multi-cluster-setup)
-- [TLS Certificate Configuration](#tls-certificate-configuration)
-- [Environment Variables Reference](#environment-variables-reference)
-- [Resource Sizing](#resource-sizing)
-- [Storage Configuration](#storage-configuration)
-- [Network Policies](#network-policies)
-- [Monitoring and Alerting](#monitoring-and-alerting)
-- [Upgrade Procedures](#upgrade-procedures)
-- [Troubleshooting](#troubleshooting)
+1. [Single-Cluster Deployment (6-node, recommended starting point)](#single-cluster-deployment)
+2. [Multi-Cluster Deployment](#multi-cluster-deployment)
+3. [TLS Certificate Configuration](#tls-certificate-configuration)
+4. [Environment Variables Reference](#environment-variables-reference)
+5. [Resource Sizing](#resource-sizing)
+6. [Storage Configuration](#storage-configuration)
+7. [Network Policies](#network-policies)
+8. [Monitoring and Alerting](#monitoring-and-alerting)
+9. [Upgrade Procedures](#upgrade-procedures)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
-## Multi-Cluster Setup
+## Single-Cluster Deployment
 
-### Cluster topology
+Deploy all HAMq components onto one Kubernetes cluster. Suitable for development, staging, and production environments where all nodes are in the same region. A 6-node cluster is the recommended minimum for HA: 3 nodes dedicated to Kafka brokers (one per node, enforced by pod anti-affinity) and 3 nodes available for application workloads.
 
-HAMq is designed for a five-cluster topology. Each cluster has a dedicated role:
+### Prerequisites
+
+| Tool | Minimum version | Install |
+|------|----------------|---------|
+| `kubectl` | v1.27+ | <https://kubernetes.io/docs/tasks/tools/> |
+| `helm` | v3.12+ | <https://helm.sh/docs/intro/install/> |
+| Kubernetes cluster | v1.27+ | k3s, k8s, EKS, GKE, AKS, … |
+| GitHub PAT | read:packages scope | Required to pull images from GHCR |
+
+Verify cluster access:
+
+```bash
+kubectl cluster-info
+kubectl get nodes
+```
+
+Expected output for a 6-node cluster:
+```
+NAME        STATUS   ROLES                  AGE
+node-cp-1   Ready    control-plane,master   ...
+node-cp-2   Ready    control-plane,master   ...
+node-cp-3   Ready    control-plane,master   ...
+node-w-1    Ready    worker                 ...
+node-w-2    Ready    worker                 ...
+node-w-3    Ready    worker                 ...
+```
+
+### Step 1 — Clone the repository
+
+```bash
+git clone https://github.com/LambdaWP-567/hamq.git
+cd hamq
+```
+
+### Step 2 — Create namespaces
+
+```bash
+kubectl create namespace kafka
+kubectl create namespace hamq
+```
+
+### Step 3 — GHCR image pull secret
+
+HAMq images are hosted on GitHub Container Registry (GHCR). Create a pull secret in both namespaces:
+
+```bash
+export GHCR_TOKEN=<your-github-pat>   # needs read:packages scope
+
+for ns in kafka hamq; do
+  kubectl create secret docker-registry ghcr-secret \
+    --docker-server=ghcr.io \
+    --docker-username=lambdawp-567 \
+    --docker-password="${GHCR_TOKEN}" \
+    -n "${ns}"
+done
+```
+
+### Step 4 — Auth secrets for app components
+
+Each component uses basic-auth (username / password). The defaults below match the `admin/admin` credentials in the UIs. **Change these for production.**
+
+```bash
+for component in producer consumer arbiter controller; do
+  kubectl create secret generic "hamq-${component}-auth" \
+    --from-literal=username=admin \
+    --from-literal=password=admin \
+    -n hamq
+done
+```
+
+### Step 5 — Add the Strimzi Helm repository
+
+```bash
+helm repo add strimzi https://strimzi.io/charts/
+helm repo update
+```
+
+### Step 6 — Deploy Kafka (3 brokers, one per node)
+
+The kafka-cluster chart installs the Strimzi operator and the Kafka cluster in one step.
+
+```bash
+helm dependency update components/kafka-cluster/helm
+
+helm upgrade --install kafka-cluster components/kafka-cluster/helm \
+  -n kafka \
+  --set global.namespace=kafka \
+  --set kafka.replicas=3 \
+  --set kafka.config.defaultReplicationFactor=3 \
+  --set kafka.config.minInsyncReplicas=2 \
+  --set kafka.config.offsetsTopicReplicationFactor=3 \
+  --set kafka.config.transactionStateLogReplicationFactor=3 \
+  --set kafka.config.transactionStateLogMinIsr=2 \
+  --set kafka.storage.storageClass=local-path \
+  --set kafka.storage.size=20Gi \
+  --set kafka.podAntiAffinity=required \
+  --set kafka.listeners.tls.enabled=false \
+  --set kafka.listeners.external.enabled=false \
+  --set topics.messages.replicas=3 \
+  --set 'topics.messages.config.minInsyncReplicas=2' \
+  --set topics.dlq.replicas=3 \
+  --set certManager.enabled=false \
+  --set monitoring.enabled=false \
+  --timeout 10m \
+  --wait=false
+```
+
+> **StorageClass:** Replace `local-path` with the StorageClass available in your cluster (`kubectl get storageclass`). For cloud clusters use `gp3` (AWS), `standard-rwo` (GKE), or `managed-premium` (Azure).
+
+Wait for all 3 brokers to become Ready:
+
+```bash
+kubectl rollout status statefulset -n kafka --timeout=10m
+kubectl get pods -n kafka -o wide
+```
+
+Verify one broker per node (anti-affinity):
+```
+NAME                         READY   NODE
+hamq-kafka-dual-role-0       1/1     node-w-1
+hamq-kafka-dual-role-1       1/1     node-w-2
+hamq-kafka-dual-role-2       1/1     node-w-3
+```
+
+### Step 7 — Verify Kafka topics
+
+```bash
+kubectl get kafkatopic -n kafka
+```
+
+Expected:
+```
+NAME            PARTITIONS   REPLICAS
+hamq-dlq        3            3
+hamq-messages   12           3
+```
+
+### Step 8 — Deploy application components
+
+All app charts share the same Helm repository root. Adjust `ingress.host` values to match your cluster's DNS / Ingress IP.
+
+> **Tip:** Replace `hamq.example.com` below with your actual domain or nip.io address (e.g. `producer.192-168-1-22.nip.io`).
+
+**Producer:**
+
+```bash
+helm upgrade --install hamq-producer components/producer/helm \
+  -n hamq \
+  --set kafka.bootstrapServers="hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092" \
+  --set kafka.tlsEnabled=false \
+  --set ingress.enabled=true \
+  --set ingress.className=traefik \
+  --set ingress.host=producer.hamq.example.com \
+  --set persistence.storageClass=local-path \
+  --set imagePullSecrets[0].name=ghcr-secret \
+  --set monitoring.enabled=false \
+  --wait --timeout 3m
+```
+
+**Consumer:**
+
+```bash
+helm upgrade --install hamq-consumer components/consumer/helm \
+  -n hamq \
+  --set kafka.bootstrapServers="hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local:9092" \
+  --set kafka.tlsEnabled=false \
+  --set consumer.autostart=true \
+  --set ingress.enabled=true \
+  --set ingress.className=traefik \
+  --set ingress.host=consumer.hamq.example.com \
+  --set persistence.storageClass=local-path \
+  --set imagePullSecrets[0].name=ghcr-secret \
+  --set monitoring.enabled=false \
+  --wait --timeout 3m
+```
+
+**Arbiter:**
+
+```bash
+helm upgrade --install hamq-arbiter components/arbiter/helm \
+  -n hamq \
+  --set arbiter.producerApiUrl="http://hamq-producer.hamq.svc.cluster.local:8000" \
+  --set arbiter.consumerApiUrl="http://hamq-consumer.hamq.svc.cluster.local:8001" \
+  --set ingress.enabled=true \
+  --set ingress.className=traefik \
+  --set ingress.host=arbiter.hamq.example.com \
+  --set imagePullSecrets[0].name=ghcr-secret \
+  --wait --timeout 3m
+```
+
+**Controller:**
+
+```bash
+helm upgrade --install hamq-controller components/controller/helm \
+  -n hamq \
+  --set controller.kafkaNamespace=kafka \
+  --set controller.kafkaClusterName=hamq-kafka \
+  --set ingress.enabled=true \
+  --set ingress.className=traefik \
+  --set ingress.host=controller.hamq.example.com \
+  --set imagePullSecrets[0].name=ghcr-secret \
+  --wait --timeout 3m
+```
+
+### Step 9 — Verify the deployment
+
+```bash
+# All pods should be Running/Ready
+kubectl get pods -n kafka
+kubectl get pods -n hamq
+
+# Ingress routes
+kubectl get ingress -n hamq
+
+# Test producer health
+curl http://producer.hamq.example.com/api/health
+
+# Test consumer health
+curl http://consumer.hamq.example.com/api/health
+```
+
+### Step 10 — Open the UIs
+
+| Component | Default URL | Default credentials |
+|-----------|-------------|-------------------|
+| Producer | `http://producer.hamq.example.com` | admin / admin |
+| Consumer | `http://consumer.hamq.example.com` | admin / admin |
+| Arbiter | `http://arbiter.hamq.example.com` | admin / admin |
+| Controller | `http://controller.hamq.example.com` | admin / admin |
+
+### Convenience: values override file
+
+Instead of passing many `--set` flags, create a `values-production.yaml` file:
+
+```yaml
+# infra/values/kafka-prod.yaml
+kafka:
+  replicas: 3
+  config:
+    defaultReplicationFactor: 3
+    minInsyncReplicas: 2
+    offsetsTopicReplicationFactor: 3
+    transactionStateLogReplicationFactor: 3
+    transactionStateLogMinIsr: 2
+  storage:
+    storageClass: local-path   # change to your StorageClass
+    size: 20Gi
+    deleteClaim: false         # keep data on cluster delete
+  podAntiAffinity: required
+  listeners:
+    tls:
+      enabled: false
+    external:
+      enabled: false
+topics:
+  messages:
+    replicas: 3
+    config:
+      minInsyncReplicas: "2"
+  dlq:
+    replicas: 3
+certManager:
+  enabled: false
+monitoring:
+  enabled: false
+```
+
+Then deploy with:
+
+```bash
+helm upgrade --install kafka-cluster components/kafka-cluster/helm \
+  -n kafka \
+  --set global.namespace=kafka \
+  -f infra/values/kafka-prod.yaml \
+  --wait=false --timeout 10m
+```
+
+### Recommended 6-node topology
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Node 1 (worker)     │  hamq-kafka-dual-role-0               │
+│  Node 2 (worker)     │  hamq-kafka-dual-role-1               │
+│  Node 3 (worker)     │  hamq-kafka-dual-role-2               │
+│  Node 4 (worker)     │  hamq-producer, hamq-arbiter          │
+│  Node 5 (worker)     │  hamq-consumer                        │
+│  Node 6 (control-plane) │  hamq-controller, Strimzi operator  │
+└──────────────────────────────────────────────────────────────┘
+```
+
+Kafka brokers are spread by the `podAntiAffinity: required` rule. App workloads schedule wherever resources are available. If you want to pin app components to specific nodes, use node labels and `nodeSelector` in each app chart's values:
+
+```bash
+# Label nodes for Kafka
+kubectl label node node-w-1 node-w-2 node-w-3 hamq-role=kafka
+
+# Label remaining nodes for app workloads
+kubectl label node node-w-4 node-w-5 node-w-6 hamq-role=app
+```
+
+Then add to each app chart:
+```yaml
+nodeSelector:
+  hamq-role: app
+```
+
+### HA failure behaviour
+
+| Failure | Impact | Recovery |
+|---------|--------|----------|
+| One Kafka broker pod killed | 2/3 ISRs remain, zero message loss | Kubernetes restarts pod automatically |
+| One Kafka node lost | Same as above | Pod reschedules to surviving node when it rejoins |
+| Producer pod killed | ~30 s gap; SQLite buffer replays queued messages on restart | Kubernetes restarts pod |
+| Consumer pod killed | Resumes from last committed offset; no message loss | Kubernetes restarts pod |
+| Controller / Arbiter pod killed | UI unavailable; Kafka message flow unaffected | Kubernetes restarts pod |
+
+---
+
+## Multi-Cluster Deployment
+
+For maximum isolation, deploy each component on its own Kubernetes cluster:
 
 ```
 Cluster A  —  Kafka (Strimzi, KRaft, 3 nodes)
@@ -32,7 +351,7 @@ Cluster D  —  Arbiter
 Cluster E  —  Controller
 ```
 
-For non-production environments you can collapse all components into a single cluster using separate namespaces. Set `global.namespace` per component and adjust `hostnames`/`bootstrapServers` to point at in-cluster Service DNS names.
+For non-production you can collapse all components into a single cluster using separate namespaces. Set `global.namespace` per component and adjust `hostnames`/`bootstrapServers` to point at in-cluster Service DNS names.
 
 ### Cross-cluster networking
 
@@ -79,7 +398,6 @@ For production, replace the self-signed issuer with one backed by your PKI:
 #### Option A: Internal CA via cert-manager
 
 ```bash
-# Create a CA certificate and a ClusterIssuer that uses it
 kubectl apply -f - <<'EOF'
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -173,48 +491,38 @@ These are set via `values.yaml` and rendered into the Strimzi `Kafka` custom res
 
 | Helm value | Kafka config key | Default | Description |
 |---|---|---|---|
-| `kafka.config.defaultReplicationFactor` | `default.replication.factor` | `3` | Default RF for auto-created topics (note: `autoCreateTopicsEnable` is `false`) |
+| `kafka.config.defaultReplicationFactor` | `default.replication.factor` | `3` | Default RF for auto-created topics |
 | `kafka.config.minInsyncReplicas` | `min.insync.replicas` | `2` | Minimum ISR count for write acknowledgment |
 | `kafka.config.offsetsTopicReplicationFactor` | `offsets.topic.replication.factor` | `3` | RF of `__consumer_offsets` internal topic |
 | `kafka.config.logRetentionHours` | `log.retention.hours` | `168` | Log retention (7 days) |
 | `kafka.config.autoCreateTopicsEnable` | `auto.create.topics.enable` | `false` | Topics must be pre-created via KafkaTopic resources |
 | `kafka.jvmOptions.xmx` | JVM `-Xmx` | `1536m` | Max JVM heap per broker |
 
-### Producer (Cluster B)
+### Producer
 
 | Variable | Helm value | Default | Description |
 |---|---|---|---|
 | `KAFKA_BOOTSTRAP_SERVERS` | `kafka.bootstrapServers` | *(required)* | Comma-separated Kafka bootstrap host:port |
 | `KAFKA_TOPIC` | `kafka.topic` | `hamq-messages` | Topic to publish to |
-| `KAFKA_CA_CERT` | *(mounted from secret)* | `/certs/ca.crt` | Path to cluster CA certificate |
-| `KAFKA_CLIENT_CERT` | *(mounted from secret)* | `/certs/user.crt` | Path to client TLS certificate |
-| `KAFKA_CLIENT_KEY` | *(mounted from secret)* | `/certs/user.key` | Path to client TLS private key |
-| `PRODUCER_FREQUENCY_HZ` | `producer.frequencyHz` | `10` | Initial publish frequency in messages per second |
-| `PRODUCER_BUFFER_MAX_MESSAGES` | `producer.bufferMaxMessages` | `1000000` | SQLite buffer size limit; back-pressure applied when reached |
-| `PRODUCER_BUFFER_DB_PATH` | `producer.bufferDbPath` | `/data/buffer.db` | Path to SQLite buffer file (should be on a PVC) |
-| `PRODUCER_RETRY_INTERVAL_SECONDS` | `producer.retryIntervalSeconds` | `5` | Seconds between drain loop iterations when Kafka is unreachable |
-| `PRODUCER_DNS_REFRESH_SECONDS` | `producer.dnsRefreshSeconds` | `60` | How often to re-resolve the bootstrap hostname |
-| `PRODUCER_ID` | *(derived from Pod name)* | `$(POD_NAME)` | Unique producer identifier included in every message |
+| `PRODUCER_FREQUENCY_HZ` | `producer.frequencyHz` | `10` | Initial publish frequency in messages/s |
+| `PRODUCER_BUFFER_MAX_MESSAGES` | `producer.bufferMaxMessages` | `1000000` | SQLite buffer size limit |
+| `PRODUCER_BUFFER_DB_PATH` | `producer.bufferDbPath` | `/data/buffer.db` | Path to SQLite buffer file (PVC) |
+| `PRODUCER_RETRY_INTERVAL_SECONDS` | `producer.retryIntervalSeconds` | `5` | Seconds between drain retries when Kafka is unreachable |
 | `API_PORT` | `api.port` | `8000` | FastAPI server port |
-| `LOG_LEVEL` | `logLevel` | `info` | Logging level: `debug`, `info`, `warning`, `error` |
+| `LOG_LEVEL` | `logLevel` | `info` | Logging level |
 
-### Consumer (Cluster C)
+### Consumer
 
 | Variable | Helm value | Default | Description |
 |---|---|---|---|
 | `KAFKA_BOOTSTRAP_SERVERS` | `kafka.bootstrapServers` | *(required)* | Kafka bootstrap host:port |
 | `KAFKA_TOPIC` | `kafka.topic` | `hamq-messages` | Topic to consume from |
 | `KAFKA_GROUP_ID` | `consumer.groupId` | `hamq-consumer-group` | Consumer group identifier |
-| `KAFKA_AUTO_COMMIT_INTERVAL_MS` | `consumer.autoCommitIntervalMs` | `5000` | Offset auto-commit interval |
-| `KAFKA_CA_CERT` | *(mounted from secret)* | `/certs/ca.crt` | Path to cluster CA certificate |
-| `KAFKA_CLIENT_CERT` | *(mounted from secret)* | `/certs/user.crt` | Path to client TLS certificate |
-| `KAFKA_CLIENT_KEY` | *(mounted from secret)* | `/certs/user.key` | Path to client TLS private key |
 | `CONSUMER_DB_PATH` | `consumer.dbPath` | `/data/consumer.db` | SQLite path for persisting received messages |
 | `API_PORT` | `api.port` | `8001` | FastAPI server port |
-| `WS_PORT` | `api.wsPort` | `8001` | WebSocket port (same as API, different path) |
 | `LOG_LEVEL` | `logLevel` | `info` | Logging level |
 
-### Arbiter (Cluster D)
+### Arbiter
 
 | Variable | Helm value | Default | Description |
 |---|---|---|---|
@@ -224,13 +532,10 @@ These are set via `values.yaml` and rendered into the Strimzi `Kafka` custom res
 | `API_PORT` | `api.port` | `8002` | FastAPI server port |
 | `LOG_LEVEL` | `logLevel` | `info` | Logging level |
 
-### Controller (Cluster E)
+### Controller
 
 | Variable | Helm value | Default | Description |
 |---|---|---|---|
-| `PRODUCER_API_URL` | `controller.producerApiUrl` | *(required)* | Producer API base URL |
-| `CONSUMER_API_URL` | `controller.consumerApiUrl` | *(required)* | Consumer API base URL |
-| `ARBITER_API_URL` | `controller.arbiterApiUrl` | *(required)* | Arbiter API base URL |
 | `KAFKA_NAMESPACE` | `controller.kafkaNamespace` | `kafka` | Kubernetes namespace where Kafka runs |
 | `KAFKA_CLUSTER_NAME` | `controller.kafkaClusterName` | `hamq-kafka` | Strimzi Kafka resource name |
 | `API_PORT` | `api.port` | `8003` | FastAPI server port |
@@ -240,29 +545,27 @@ These are set via `values.yaml` and rendered into the Strimzi `Kafka` custom res
 
 ## Resource Sizing
 
-### Kafka brokers (Cluster A)
+### Kafka brokers
 
-The default resource values are suitable for moderate workloads (< 10 000 msg/s). For higher throughput adjust the following `values.yaml` keys:
+The default resource values are suitable for moderate workloads (< 10 000 msg/s). For higher throughput:
 
 ```yaml
 kafka:
   resources:
     requests:
-      memory: 4Gi    # increase for higher throughput
+      memory: 4Gi
       cpu: "1"
     limits:
       memory: 8Gi
       cpu: "4"
   jvmOptions:
-    xmx: 3072m       # ~60-75% of memory limit
-    xms: 3072m       # set equal to xmx to avoid GC pressure
+    xmx: 3072m   # ~60-75% of memory limit
+    xms: 3072m   # equal to xmx to avoid GC pauses
   storage:
-    size: 100Gi      # scale to expected data volume × retention period
+    size: 100Gi  # throughput × retention period
 ```
 
 ### Application pods
-
-Default resource requests for application components:
 
 | Component | CPU request | Memory request | CPU limit | Memory limit |
 |-----------|-------------|----------------|-----------|--------------|
@@ -278,35 +581,29 @@ Default resource requests for application components:
 Kafka brokers require persistent storage. The `storageClass` value must match an available StorageClass in your cluster.
 
 ```bash
-# List available StorageClasses
 kubectl get storageclass
 ```
-
-For cloud providers:
 
 | Cloud | Recommended StorageClass | Notes |
 |-------|--------------------------|-------|
 | AWS EKS | `gp3` | Provision with `allowVolumeExpansion: true` |
 | GKE | `standard-rwo` | Regional disk for HA |
 | Azure AKS | `managed-premium` | Premium SSD |
-| On-premises | `local-path` or `rook-ceph` | Ensure replication at storage layer |
+| On-premises / k3s | `local-path` | Per-node; Kafka protocol-level replication provides HA |
 
-Set `kafka.storage.storageClass` in `values.yaml` to your chosen class.
-
-> **Note:** Kafka already replicates data across brokers (RF=3). Using a replicated block storage (e.g., Ceph) adds redundancy at the storage layer, which improves durability but consumes more storage. For most deployments standard block storage per node is sufficient given Kafka's own replication.
+> Kafka already replicates data across brokers (RF=3). Using a replicated block storage (e.g., Ceph) adds a second layer of redundancy but consumes more storage. For most deployments standard block storage per node is sufficient.
 
 ---
 
 ## Network Policies
 
-Apply the following Kubernetes NetworkPolicies to restrict traffic in Cluster A:
+Apply the following Kubernetes NetworkPolicies to restrict traffic to Kafka:
 
 ```yaml
-# Allow only Producer/Consumer clusters to reach port 9094
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: kafka-external-ingress
+  name: kafka-ingress
   namespace: kafka
 spec:
   podSelector:
@@ -316,10 +613,11 @@ spec:
     - Ingress
   ingress:
     - ports:
-        - port: 9094
+        - port: 9092   # plain (in-cluster only)
           protocol: TCP
-    - ports:
-        - port: 9093
+        - port: 9093   # TLS (in-cluster mTLS)
+          protocol: TCP
+        - port: 9094   # external (LoadBalancer)
           protocol: TCP
 ```
 
@@ -331,8 +629,6 @@ spec:
 
 The HAMq Kafka chart deploys a `ServiceMonitor` (if `monitoring.serviceMonitor.enabled: true`) that configures Prometheus to scrape the JMX Prometheus Exporter on port `9404` every 30 seconds.
 
-Ensure your Prometheus Operator is watching the `monitoring.serviceMonitor.namespace` namespace (default: `monitoring`).
-
 ### Key Kafka metrics to alert on
 
 | Metric | Alert threshold | Meaning |
@@ -340,14 +636,8 @@ Ensure your Prometheus Operator is watching the `monitoring.serviceMonitor.names
 | `kafka_server_replicamanager_underreplicatedpartitions` | > 0 for > 60s | Partition has fewer replicas than RF |
 | `kafka_server_replicamanager_offlinepartitionscount` | > 0 | Partition has no leader |
 | `kafka_controller_kafkacontroller_activecontrollercount` | != 1 | No active controller or split-brain |
-| `kafka_network_requestmetrics_requestspersec` | sudden drop | Kafka stopped receiving requests |
 | `hamq_producer_buffer_size` | > 10000 | Producer buffer growing; Kafka may be unreachable |
 | `hamq_consumer_lag_messages` | > 1000 | Consumer falling behind |
-| `hamq_arbiter_loss_rate` | > 0.0001 | Message loss detected |
-
-### Grafana dashboards
-
-The chart can deploy pre-built Grafana dashboards as ConfigMaps (set `monitoring.grafana.dashboards.enabled: true`). Grafana must be configured to watch the `monitoring.grafana.dashboards.namespace` namespace for dashboard ConfigMaps (label: `grafana_dashboard: "1"`).
 
 ---
 
@@ -355,30 +645,22 @@ The chart can deploy pre-built Grafana dashboards as ConfigMaps (set `monitoring
 
 ### Upgrading the Kafka version
 
-1. Update `kafka.version` in `values.yaml`.
+1. Update `kafka.version` in your values file.
 2. Check the [Strimzi upgrade guide](https://strimzi.io/docs/operators/latest/deploying#assembly-upgrade-str) for inter-version protocol changes.
 3. Run `helm upgrade` — Strimzi performs a rolling restart of brokers.
 
 ```bash
-helm upgrade hamq-kafka components/kafka-cluster/helm \
-  --namespace kafka \
-  --set kafka.version=3.9.0 \
-  --wait --timeout 15m
+helm upgrade kafka-cluster components/kafka-cluster/helm \
+  -n kafka --set kafka.version=4.2.0 --wait --timeout 15m
 ```
-
-### Upgrading the Strimzi operator
-
-Update `dependencies[0].version` in `Chart.yaml` and re-run `helm dependency update`. Then upgrade the Helm release. The operator upgrade is non-disruptive if the Kafka version is compatible.
 
 ### Rolling application component updates
 
-Each application component Helm chart uses a `RollingUpdate` deployment strategy. Run `helm upgrade` with the new image tag:
+Each app chart uses a `RollingUpdate` strategy. Update the image tag:
 
 ```bash
 helm upgrade hamq-producer components/producer/helm \
-  --namespace hamq \
-  --set image.tag=v1.2.0 \
-  --wait --timeout 5m
+  -n hamq --set image.backend.tag=v1.2.0 --wait --timeout 5m
 ```
 
 ---
@@ -387,123 +669,57 @@ helm upgrade hamq-producer components/producer/helm \
 
 ### Kafka pods are stuck in `Pending`
 
-**Symptom:** `kubectl get pods -n kafka` shows pods in `Pending`.
-
-**Cause / Fix:**
-
 ```bash
-# Check events
 kubectl describe pod <pod-name> -n kafka | grep -A 20 Events
-
-# Common cause: no PVC bound — check StorageClass
 kubectl get pvc -n kafka
 kubectl get storageclass
 ```
 
-Set `kafka.storage.storageClass` to a StorageClass that exists in your cluster.
+Common cause: `kafka.storage.storageClass` does not exist in the cluster. Set it to a StorageClass returned by `kubectl get storageclass`.
 
----
+If using `podAntiAffinity: required` and a broker can't schedule, the error will be `0/N nodes are available: N node(s) didn't match pod anti-affinity rules`. Either add more nodes or change to `podAntiAffinity: preferred`.
 
 ### Kafka cluster not reaching `Ready` state
 
-**Symptom:** `kubectl get kafka -n kafka` shows status other than `Ready`.
-
 ```bash
-# Check Strimzi operator logs
 kubectl logs -n kafka -l name=strimzi-cluster-operator --tail=100
-
-# Check Kafka CR status conditions
 kubectl get kafka hamq-kafka -n kafka -o jsonpath='{.status.conditions}' | jq .
 ```
 
----
-
 ### Producer cannot connect to Kafka
 
-**Symptom:** Producer logs show `Connection refused` or `SSL handshake failed`.
-
 ```bash
-# Verify bootstrap address is reachable
-kubectl exec -n hamq <producer-pod> -- \
-  nc -zv <kafka-bootstrap-host> 9094
+# Verify bootstrap address is reachable from the producer pod
+kubectl exec -n hamq deploy/hamq-producer -- \
+  nc -zv hamq-kafka-kafka-bootstrap.kafka.svc.cluster.local 9092
 
-# Verify certificates are mounted correctly
-kubectl exec -n hamq <producer-pod> -- ls -la /certs/
-
-# Test TLS handshake
-kubectl exec -n hamq <producer-pod> -- \
-  openssl s_client -connect <kafka-bootstrap-host>:9094 \
-    -CAfile /certs/ca.crt \
-    -cert /certs/user.crt \
-    -key /certs/user.key \
-    -verify_return_error
+# Check environment variables
+kubectl exec -n hamq deploy/hamq-producer -- env | grep KAFKA
 ```
 
-**Common causes:**
-- `KAFKA_BOOTSTRAP_SERVERS` points to the internal cluster IP instead of the external LB IP.
-- The client certificate Secret was not copied to the application cluster namespace.
-- The StorageClass is not `standard` — update `kafka.storage.storageClass`.
-
----
+Common causes:
+- `KAFKA_BOOTSTRAP_SERVERS` uses the wrong port (9092 = plain, 9093 = TLS; match `kafka.tlsEnabled`).
+- The `kafka` namespace is not reachable from the `hamq` namespace (check NetworkPolicy).
 
 ### Consumer group lag is growing
 
-**Symptom:** `hamq_consumer_lag_messages` is non-zero and increasing.
-
 ```bash
-# Check consumer pod logs
-kubectl logs -n hamq <consumer-pod> --tail=100
+kubectl logs -n hamq deploy/hamq-consumer --tail=100
 
-# Check consumer group offset lag using kafka-consumer-groups
+# Check consumer group offsets
 kubectl exec -n kafka \
   $(kubectl get pod -n kafka -l strimzi.io/cluster=hamq-kafka -o name | head -1) -- \
   bin/kafka-consumer-groups.sh \
-    --bootstrap-server localhost:9093 \
-    --command-config /tmp/admin.properties \
+    --bootstrap-server localhost:9092 \
     --describe --group hamq-consumer-group
 ```
-
----
-
-### Strimzi entity operator pod crashlooping
-
-**Symptom:** `hamq-kafka-entity-operator-*` pod repeatedly restarts.
-
-```bash
-kubectl logs -n kafka -l strimzi.io/kind=EntityOperator -c topic-operator --tail=50
-kubectl logs -n kafka -l strimzi.io/kind=EntityOperator -c user-operator  --tail=50
-```
-
-Typical cause: conflicting KafkaTopic or KafkaUser resource definition (e.g., duplicate name, invalid ACL operation). Fix the offending resource and the operator will recover automatically.
-
----
-
-### Certificate errors after cluster CA rotation
-
-Strimzi rotates the cluster CA annually by default. After rotation, application components must reload the new CA cert:
-
-```bash
-# Re-export and re-apply the updated CA secret to application clusters
-kubectl --context kafka-cluster -n kafka \
-  get secret hamq-kafka-cluster-ca-cert -o json | \
-  jq 'del(.metadata.resourceVersion,.metadata.uid,.metadata.creationTimestamp,.metadata.annotations,.metadata.ownerReferences)' | \
-  kubectl --context producer-cluster -n hamq apply -f -
-
-# Restart producer to pick up new cert
-kubectl --context producer-cluster -n hamq \
-  rollout restart deployment/hamq-producer
-```
-
----
 
 ### Viewing all Prometheus metrics
 
 ```bash
-# Port-forward the Kafka JMX exporter metrics endpoint
 kubectl -n kafka port-forward \
   $(kubectl get pod -n kafka -l strimzi.io/name=hamq-kafka-kafka -o name | head -1) \
   9404:9404
 
-# Browse metrics
 curl http://localhost:9404/metrics | grep kafka_server
 ```
