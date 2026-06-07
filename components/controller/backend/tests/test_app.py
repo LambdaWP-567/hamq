@@ -185,6 +185,7 @@ def client(
     app.state.event_store = mock_event_store
     app.state.chaos_engine = mock_chaos_engine
     app.state.settings = settings
+    app.state.network_cut_nodes: set[str] = set()
 
     # Use raise_server_exceptions=True so test failures surface clearly
     return TestClient(app, raise_server_exceptions=True)
