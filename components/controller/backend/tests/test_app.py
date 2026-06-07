@@ -805,3 +805,139 @@ class TestEvents:
     def test_get_events_requires_auth(self, client: TestClient) -> None:
         response = client.get("/api/events")
         assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Network cut / restore (KVM node buttons)
+# ---------------------------------------------------------------------------
+
+class TestNetworkCutRestore:
+    """Verify the cut-network / restore-network endpoints and state toggling.
+
+    virsh is fully mocked so no hypervisor is needed.
+    node-1 is treated as a KVM-eligible node (not in HOST_NODES).
+    cubecluster is the hypervisor host and must be rejected.
+    """
+
+    KVM_NODE = "node-1"
+    HOST_NODE = "cubecluster"
+
+    def test_cut_network_returns_200(self, client: TestClient) -> None:
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.cut_network", new_callable=AsyncMock,
+                   return_value=(True, f"Network cut for {self.KVM_NODE}")):
+            response = client.post(
+                f"/api/nodes/{self.KVM_NODE}/cut-network",
+                headers=_auth_headers(),
+            )
+        assert response.status_code == 200
+
+    def test_cut_network_event_status_is_success(self, client: TestClient) -> None:
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.cut_network", new_callable=AsyncMock,
+                   return_value=(True, f"Network cut for {self.KVM_NODE}")):
+            response = client.post(
+                f"/api/nodes/{self.KVM_NODE}/cut-network",
+                headers=_auth_headers(),
+            )
+        assert response.json()["status"] == "success"
+
+    def test_cut_network_adds_node_to_state(self, client: TestClient) -> None:
+        """After a successful cut the node name must appear in network_cut_nodes."""
+        app.state.network_cut_nodes = set()
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.cut_network", new_callable=AsyncMock,
+                   return_value=(True, "ok")):
+            client.post(f"/api/nodes/{self.KVM_NODE}/cut-network", headers=_auth_headers())
+        assert self.KVM_NODE in app.state.network_cut_nodes
+
+    def test_cut_network_reflected_in_list_nodes(self, client: TestClient) -> None:
+        """GET /api/nodes must return network_cut=true for the node after a cut."""
+        app.state.network_cut_nodes = set()
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.cut_network", new_callable=AsyncMock,
+                   return_value=(True, "ok")):
+            client.post(f"/api/nodes/{self.KVM_NODE}/cut-network", headers=_auth_headers())
+        nodes = client.get("/api/nodes", headers=_auth_headers()).json()
+        match = next((n for n in nodes if n["name"] == self.KVM_NODE), None)
+        assert match is not None
+        assert match["network_cut"] is True
+
+    def test_restore_network_returns_200(self, client: TestClient) -> None:
+        app.state.network_cut_nodes = {self.KVM_NODE}
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.restore_network", new_callable=AsyncMock,
+                   return_value=(True, f"Network restored for {self.KVM_NODE}")):
+            response = client.post(
+                f"/api/nodes/{self.KVM_NODE}/restore-network",
+                headers=_auth_headers(),
+            )
+        assert response.status_code == 200
+
+    def test_restore_network_removes_node_from_state(self, client: TestClient) -> None:
+        """After restore the node must be removed from network_cut_nodes."""
+        app.state.network_cut_nodes = {self.KVM_NODE}
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.restore_network", new_callable=AsyncMock,
+                   return_value=(True, "ok")):
+            client.post(f"/api/nodes/{self.KVM_NODE}/restore-network", headers=_auth_headers())
+        assert self.KVM_NODE not in app.state.network_cut_nodes
+
+    def test_restore_network_reflected_in_list_nodes(self, client: TestClient) -> None:
+        """GET /api/nodes must return network_cut=false after restore."""
+        app.state.network_cut_nodes = {self.KVM_NODE}
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.restore_network", new_callable=AsyncMock,
+                   return_value=(True, "ok")):
+            client.post(f"/api/nodes/{self.KVM_NODE}/restore-network", headers=_auth_headers())
+        nodes = client.get("/api/nodes", headers=_auth_headers()).json()
+        match = next((n for n in nodes if n["name"] == self.KVM_NODE), None)
+        assert match is not None
+        assert match["network_cut"] is False
+
+    def test_cut_network_virsh_failure_returns_failed_event(self, client: TestClient) -> None:
+        """If virsh returns rc!=0 the event status must be 'failed'."""
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.cut_network", new_callable=AsyncMock,
+                   return_value=(False, "error: domain not found")):
+            response = client.post(
+                f"/api/nodes/{self.KVM_NODE}/cut-network",
+                headers=_auth_headers(),
+            )
+        assert response.json()["status"] == "failed"
+
+    def test_cut_network_virsh_failure_does_not_add_to_state(self, client: TestClient) -> None:
+        """A failed virsh call must not add the node to network_cut_nodes."""
+        app.state.network_cut_nodes = set()
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=True), \
+             patch("app.api.routes.virsh.cut_network", new_callable=AsyncMock,
+                   return_value=(False, "error")):
+            client.post(f"/api/nodes/{self.KVM_NODE}/cut-network", headers=_auth_headers())
+        assert self.KVM_NODE not in app.state.network_cut_nodes
+
+    def test_cut_network_host_node_rejected(self, client: TestClient) -> None:
+        """cubecluster is the hypervisor host — cut must be rejected with status=failed."""
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=False):
+            response = client.post(
+                f"/api/nodes/{self.HOST_NODE}/cut-network",
+                headers=_auth_headers(),
+            )
+        assert response.status_code == 200
+        assert response.json()["status"] == "failed"
+
+    def test_restore_network_host_node_rejected(self, client: TestClient) -> None:
+        with patch("app.api.routes.virsh.is_kvm_node", return_value=False):
+            response = client.post(
+                f"/api/nodes/{self.HOST_NODE}/restore-network",
+                headers=_auth_headers(),
+            )
+        assert response.status_code == 200
+        assert response.json()["status"] == "failed"
+
+    def test_cut_network_requires_auth(self, client: TestClient) -> None:
+        response = client.post(f"/api/nodes/{self.KVM_NODE}/cut-network")
+        assert response.status_code == 401
+
+    def test_restore_network_requires_auth(self, client: TestClient) -> None:
+        response = client.post(f"/api/nodes/{self.KVM_NODE}/restore-network")
+        assert response.status_code == 401

@@ -25,6 +25,9 @@ const NodeControl: React.FC<NodeControlProps> = ({ liveStatus }) => {
   const [loading, setLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Suppress WebSocket node updates while an action is in flight to prevent
+  // a stale WS snapshot from reverting the network_cut toggle.
+  const suppressWsRef = React.useRef(false)
 
   const fetchNodes = useCallback(async () => {
     setLoading(true)
@@ -38,10 +41,13 @@ const NodeControl: React.FC<NodeControlProps> = ({ liveStatus }) => {
     }
   }, [api])
 
-  useEffect(() => { if (liveStatus?.nodes) setNodes(liveStatus.nodes) }, [liveStatus])
+  useEffect(() => {
+    if (liveStatus?.nodes && !suppressWsRef.current) setNodes(liveStatus.nodes)
+  }, [liveStatus])
   useEffect(() => { void fetchNodes() }, [fetchNodes])
 
   const exec = async (label: string, fn: () => Promise<unknown>, type: 'success' | 'info' = 'success') => {
+    suppressWsRef.current = true
     setActionLoading(label)
     setError(null)
     try {
@@ -54,6 +60,8 @@ const NodeControl: React.FC<NodeControlProps> = ({ liveStatus }) => {
       showToast(msg, 'error')
     } finally {
       setActionLoading(null)
+      // Re-enable WS updates after one extra cycle to absorb any in-flight snapshot
+      setTimeout(() => { suppressWsRef.current = false }, 6000)
     }
   }
 
