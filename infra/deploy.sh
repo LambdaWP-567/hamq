@@ -187,10 +187,11 @@ deploy_app() {
     --no-headers 2>/dev/null | sed 's/^/  /' || true
 }
 
-deploy_app hamq-producer   producer   "${VALUES_DIR}/producer-test.yaml"
-deploy_app hamq-consumer   consumer   "${VALUES_DIR}/consumer-test.yaml"
-deploy_app hamq-arbiter    arbiter    "${VALUES_DIR}/arbiter-test.yaml"
-deploy_app hamq-controller controller "${VALUES_DIR}/controller-test.yaml"
+deploy_app hamq-producer        producer        "${VALUES_DIR}/producer-test.yaml"
+deploy_app hamq-consumer        consumer        "${VALUES_DIR}/consumer-test.yaml"
+deploy_app hamq-arbiter         arbiter         "${VALUES_DIR}/arbiter-test.yaml"
+deploy_app hamq-controller      controller      "${VALUES_DIR}/controller-test.yaml"
+deploy_app hamq-test-orchestrator test-orchestrator "${VALUES_DIR}/test-orchestrator-test.yaml"
 
 # Cockpit has no pods — it's a reverse-proxy to the host Cockpit service
 step "7 — Deploy cockpit ingress"
