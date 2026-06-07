@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Auto-bump the patch version for every component that has staged changes.
+# The bumped VERSION file is immediately staged so it's part of the same commit.
+set -euo pipefail
+
+COMPONENTS="producer consumer arbiter controller test-orchestrator"
+
+for comp in $COMPONENTS; do
+  if git diff --cached --name-only | grep -q "^components/$comp/"; then
+    VERSION_FILE="components/$comp/VERSION"
+    [ -f "$VERSION_FILE" ] || continue
+
+    current=$(cat "$VERSION_FILE" | tr -d '[:space:]')
+    IFS='.' read -r major minor patch <<< "$current"
+    patch=$(( patch + 1 ))
+    new_version="${major}.${minor}.${patch}"
+
+    printf '%s\n' "$new_version" > "$VERSION_FILE"
+    git add "$VERSION_FILE"
+    echo "  [version] $comp: $current → $new_version"
+  fi
+done
