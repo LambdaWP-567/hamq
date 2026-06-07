@@ -182,6 +182,13 @@ deploy_app() {
     --force-conflicts \
     --timeout 3m \
     --wait
+  # Force pod restart so :latest images are always re-pulled even when the
+  # Helm spec didn't change (Helm won't roll a deployment if only the image
+  # content changed but the tag stayed ":latest").
+  kubectl rollout restart deployment -n "$APP_NS" -l "app.kubernetes.io/name=${chart}" \
+    2>/dev/null || true
+  kubectl rollout status deployment -n "$APP_NS" -l "app.kubernetes.io/name=${chart}" \
+    --timeout=120s 2>/dev/null || true
   log "$name deployed"
   kubectl get pods -n "$APP_NS" -l "app.kubernetes.io/name=${chart}" \
     --no-headers 2>/dev/null | sed 's/^/  /' || true
