@@ -179,6 +179,7 @@ deploy_app() {
     "${REPO_ROOT}/components/${chart}/helm" \
     -n "$APP_NS" \
     -f "${values}" \
+    --force-conflicts \
     --timeout 3m \
     --wait
   log "$name deployed"
